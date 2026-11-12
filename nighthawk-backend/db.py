@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -41,8 +42,21 @@ def connect() -> sqlite3.Connection:
     return conn
 
 
+@contextmanager
+def db_session():
+    conn = connect()
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def init_db() -> None:
-    with connect() as conn:
+    with db_session() as conn:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS projects (
@@ -82,7 +96,7 @@ def init_db() -> None:
 
 def get_project() -> dict[str, Any]:
     init_db()
-    with connect() as conn:
+    with db_session() as conn:
         row = conn.execute("SELECT payload, updated_at FROM projects WHERE id = 1").fetchone()
     result = json.loads(row["payload"])
     result["updated_at"] = row["updated_at"]
@@ -91,7 +105,7 @@ def get_project() -> dict[str, Any]:
 
 def save_project(payload: dict[str, Any]) -> dict[str, Any]:
     stamp = utc_now()
-    with connect() as conn:
+    with db_session() as conn:
         conn.execute(
             """INSERT INTO projects (id, payload, updated_at) VALUES (1, ?, ?)
                ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at""",
@@ -104,7 +118,7 @@ def save_project(payload: dict[str, Any]) -> dict[str, Any]:
 
 def create_session(name: str, notes: str = "") -> dict[str, Any]:
     stamp = utc_now()
-    with connect() as conn:
+    with db_session() as conn:
         cur = conn.execute(
             "INSERT INTO survey_sessions (name, notes, created_at) VALUES (?, ?, ?)",
             (name, notes, stamp),
@@ -114,7 +128,7 @@ def create_session(name: str, notes: str = "") -> dict[str, Any]:
 
 
 def list_sessions() -> list[dict[str, Any]]:
-    with connect() as conn:
+    with db_session() as conn:
         rows = conn.execute("""
             SELECT s.id, s.name, s.notes, s.created_at, COUNT(p.id) AS point_count
             FROM survey_sessions s
@@ -125,7 +139,7 @@ def list_sessions() -> list[dict[str, Any]]:
 
 
 def add_point(session_id: int, point: dict[str, Any]) -> dict[str, Any]:
-    with connect() as conn:
+    with db_session() as conn:
         exists = conn.execute("SELECT id FROM survey_sessions WHERE id = ?", (session_id,)).fetchone()
         if exists is None:
             raise LookupError("Survey session not found")
@@ -145,7 +159,7 @@ def add_point(session_id: int, point: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_points(session_id: int) -> list[dict[str, Any]]:
-    with connect() as conn:
+    with db_session() as conn:
         rows = conn.execute(
             "SELECT * FROM survey_points WHERE session_id = ? ORDER BY id",
             (session_id,),
