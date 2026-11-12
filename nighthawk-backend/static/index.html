@@ -74,6 +74,7 @@
           <div class="divider"></div><div class="tool-head"><h3>Plan tools</h3><select id="planMode"><option value="select">Select / inspect</option><option value="wall">Draw wall</option><option value="router">Place router</option></select></div>
           <label>Wall material<select id="wallMaterial"><option value="drywall">Drywall</option><option value="wood">Wood</option><option value="glass">Glass</option><option value="brick">Brick</option><option value="concrete">Concrete</option><option value="metal">Metal</option></select></label>
           <p class="help" id="toolHelp">Choose Draw wall, then click two points on the plan.</p>
+          <button class="btn secondary full" id="optimizeRouter">✦ Find better router position</button><p class="help" id="optimizerResult">Uses the simplified RF model to rank candidate locations.</p>
           <div class="wall-list" id="wallList"></div>
         </div>
         <div class="panel plan-panel"><div class="panel-head"><div><h3>2D floor plan</h3><p>Click to draw walls or reposition the router.</p></div><span class="live-pill">EDITOR</span></div><div class="canvas-wrap"><canvas id="planCanvas"></canvas></div><div class="canvas-foot"><span id="planDimensions">10 × 8 m</span><span id="wallCount">0 walls</span></div></div>
