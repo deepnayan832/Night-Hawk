@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { project:null, sessions:[], points:[], networks:[], selectedPoint:null, activeSession:null, coverage:null, coverageKind:"predicted", wallStart:null, mode:"select", scan:null };
+const state = { project:null, sessions:[], points:[], networks:[], selectedPoint:null, activeSession:null, coverage:null, coveragePoints:[], coverageKind:"predicted", wallStart:null, mode:"select", scan:null };
 const titles = {overview:"Overview",scanner:"Wi-Fi Scanner",survey:"Home Survey",floorplan:"Floor Plan & 3D",coverage:"Coverage Maps"};
 const api = async (path, options={}) => {
   const response = await fetch(path,{headers:{"Content-Type":"application/json",...(options.headers||{})},...options});
@@ -71,14 +71,22 @@ async function loadPoints(id){
   $("exportCsv").disabled=!id||!state.points.length;$("capturePoint").disabled=!id||!state.selectedPoint;
   fillSessions();refreshStats();drawPlan($("surveyCanvas"),true);
 }
-$("networkSelect").addEventListener("change",()=>{const n=state.networks[Number($("networkSelect").value)];if(n&&n.rssi_dbm_estimate!=null)$("manualRssi").value=n.rssi_dbm_estimate});
-$("manualRssi").addEventListener("input",()=>{$("capturePoint").disabled=!state.activeSession||!state.selectedPoint||$("manualRssi").value===""});
+$("networkSelect").addEventListener("change",()=>{
+  const n=state.networks[Number($("networkSelect").value)];
+  if(n&&n.rssi_dbm_estimate!=null){$("manualRssi").value=n.rssi_dbm_estimate;$("manualRssi").dataset.source="estimate"}
+  else if(!$("manualRssi").dataset.source||$("manualRssi").dataset.source==="estimate"){$("manualRssi").value="";$("manualRssi").dataset.source=""}
+  $("capturePoint").disabled=!state.activeSession||!state.selectedPoint||$("manualRssi").value==="";
+});
+$("manualRssi").addEventListener("input",()=>{
+  $("manualRssi").dataset.source="manual";
+  $("capturePoint").disabled=!state.activeSession||!state.selectedPoint||$("manualRssi").value==="";
+});
 $("capturePoint").addEventListener("click",async()=>{
   if(!state.activeSession||!state.selectedPoint)return;
   const n=state.networks[Number($("networkSelect").value)]||{};
   const chosen=$("manualRssi").value!==""?Number($("manualRssi").value):n.rssi_dbm_estimate;
   if(!Number.isFinite(chosen)){toast("Select a scanned network or enter RSSI manually",true);return}
-  const payload={...state.selectedPoint,rssi_dbm:chosen,ssid:n.ssid||"",bssid:n.bssid||"",signal_percent:n.signal_percent??null,measurement_source:$("manualRssi").value!==""?"manual":"windows_netsh_signal_estimate"};
+  const payload={...state.selectedPoint,rssi_dbm:chosen,ssid:n.ssid||"",bssid:n.bssid||"",signal_percent:n.signal_percent??null,measurement_source:$("manualRssi").dataset.source==="manual"?"manual":"windows_netsh_signal_estimate"};
   try{await api("/api/surveys/"+state.activeSession+"/points",{method:"POST",body:JSON.stringify(payload)});await loadPoints(state.activeSession);toast("Measurement saved locally")}
   catch(e){toast(e.message,true)}
 });
@@ -175,6 +183,7 @@ async function loadCoverage(kind){
   try{
     const data=kind==="measured"?await api("/api/coverage/measured?session_id="+session+"&resolution=40"):await api("/api/coverage/predicted?resolution=40");
     state.coverage=data;state.coverageKind=kind;
+    state.coveragePoints=kind==="measured"?await api("/api/surveys/"+session+"/points"):[];
     $("coverageTitle").textContent=kind==="measured"?"Measured signal heatmap":"Theoretical RF propagation model";
     $("coverageSubtitle").textContent=kind==="measured"?"IDW interpolation of "+data.point_count+" saved physical readings.":"Estimated from router position, frequency, distance and wall crossings.";
     $("coverageType").textContent=kind==="measured"?"MEASURED · IDW":"MODEL · ESTIMATE";
@@ -193,7 +202,7 @@ function drawHeat(){
   for(let iy=0;iy<n;iy++)for(let ix=0;ix<n;ix++){const v=rows[iy][ix];if(v==null)continue;ctx.globalAlpha=.82;ctx.fillStyle=dbmColor(v);ctx.fillRect(left+ix*dw/n,top+dh-(iy+1)*dh/n,cellW,cellH)}
   ctx.globalAlpha=1;ctx.strokeStyle="#8ba3b8";ctx.lineWidth=1.5;ctx.strokeRect(left,top,dw,dh);
   const p=state.project;const rx=left+p.router.x/p.width_m*dw,ry=top+dh-p.router.y/p.height_m*dh;ctx.fillStyle="#07131b";ctx.strokeStyle="#e9ffff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(rx,ry,7,0,Math.PI*2);ctx.fill();ctx.stroke();
-  if(state.coverageKind==="measured")state.points.forEach(pt=>{const x=left+pt.x/p.width_m*dw,y=top+dh-pt.y/p.height_m*dh;ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill()});
+  if(state.coverageKind==="measured")state.coveragePoints.forEach(pt=>{const x=left+pt.x/p.width_m*dw,y=top+dh-pt.y/p.height_m*dh;ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill()});
 }
 async function loadSessionDropdowns(){
   state.sessions=await api("/api/surveys");fillSessions();refreshStats();
