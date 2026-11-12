@@ -2,225 +2,219 @@
 
 # 🌙 NIGHTHAWK
 
-### Wi-Fi Intelligence · RF Surveying · 3D Spatial Mapping
+### Local Wi-Fi Intelligence · RF Surveying · Spatial Mapping
 
-**Make your wireless environment easier to measure, understand, and visualize.**
+**Measure wireless coverage. Draw your space. Compare real readings with an indoor RF model.**
 
 [![License](https://img.shields.io/badge/License-MIT-22c55e.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?logo=windows)](HARDWARE_REQUIREMENTS.md)
-[![Project](https://img.shields.io/badge/Focus-Wi--Fi%20%7C%20RF%20%7C%203D-667eea)](ARCHITECTURE.md)
-[![GitHub Pages](https://img.shields.io/badge/Website-GitHub%20Pages-111827?logo=github)](https://deepnayan832.github.io/Night-Hawk/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python)](requirements.txt)
+[![CI](https://github.com/deepnayan832/Night-Hawk/actions/workflows/ci.yml/badge.svg)](https://github.com/deepnayan832/Night-Hawk/actions/workflows/ci.yml)
 
-[**Website**](https://deepnayan832.github.io/Night-Hawk/) · [**Architecture**](ARCHITECTURE.md) · [**Hardware Guide**](HARDWARE_REQUIREMENTS.md) · [**Issues**](https://github.com/deepnayan832/Night-Hawk/issues)
+[**Project Website**](https://deepnayan832.github.io/Night-Hawk/) · [**Architecture**](ARCHITECTURE.md) · [**Hardware Guide**](HARDWARE_REQUIREMENTS.md) · [**Issues**](https://github.com/deepnayan832/Night-Hawk/issues)
 
 </div>
 
 ---
 
-## ✨ What is NightHawk?
+## ✨ What NightHawk does
 
-**NightHawk** is a Windows-focused project exploring local Wi-Fi surveying, floor-plan-based RF analysis, and 2D/3D wireless coverage visualization.
+NightHawk is a local Windows application for surveying the Wi-Fi environment around your home and visualizing indoor coverage against a user-drawn floor plan.
 
-The goal is to combine real measurements from a Windows Wi-Fi adapter with floor-plan geometry and clearly labelled RF propagation models. Optional hardware integrations explore Channel State Information (CSI) sensing and physical volumetric scanning.
+The first runnable release includes a Python/FastAPI local service, a browser-based interface, Windows WLAN scanning through `netsh`, SQLite storage, a floor-plan editor, measured-signal interpolation, and a simplified indoor RF propagation model.
 
-> **Measurement honesty is a core design principle:** measured signal data, theoretical simulations, archived sample datasets, and optional-hardware readings must never be presented as the same thing.
+> **Important:** NightHawk does not perform Wi-Fi X-ray imaging. It does not infer architectural structure from ordinary router signals. You draw or import the geometry yourself; RF coverage is measured or modelled inside that geometry.
 
-## 🧭 Project at a glance
+## ✅ Current working scope
 
-| Area | Project direction |
+| Module | Current implementation |
 |---|---|
-| Platform | Windows 10/11 x64 |
-| Primary language/runtime | Python backend + web-based frontend (planned architecture) |
-| Network access | Native Windows WLAN tooling |
-| Spatial analysis | 2D interpolation and 3D RF propagation modelling |
-| Local data | SQLite and project JSON/CSV exports (design target) |
-| Optional hardware | ESP32 CSI devices and motorized scan rigs |
-| Website | Static GitHub Pages landing page |
+| Windows Wi-Fi Scanner | Lists visible BSSIDs, SSIDs, signal quality, channel and security using Windows `netsh` |
+| Signal strength | Shows Windows signal percentage and a clearly labelled approximate dBm conversion |
+| Survey sessions | Create named sessions and store sample positions in a local SQLite database |
+| Measurement capture | Click a room position and save a selected network's estimated signal or a manually entered dBm value |
+| Floor-plan editor | Set dimensions, draw/remove material-labelled walls and place the router |
+| 2D plan view | Canvas-based floor-plan editing on a metre grid |
+| 3D spatial preview | Local isometric canvas projection of room geometry and wall height; not a WebGL/Three.js engine |
+| Measured heatmap | IDW interpolation from saved survey points |
+| Predicted coverage | Simplified FSPL plus per-wall material attenuation model |
+| Router placement | Grid-search ranking of candidate router positions using the same simplified model |
+| Survey export | Download a session's measurements as CSV |
+| Local persistence | SQLite database stored under the user's home directory |
 
-## 🚀 Feature map
+**Not in this release:** ESP32 CSI capture, human-presence sensing, automated motorized scanning, multi-floor geometry, CAD/image import, true Three.js/WebGL rendering, and detailed antenna/interference simulation. These are future milestones, not completed features.
 
-The following describes the project's intended application modules and architecture. **It is not a claim that every module is currently runnable from this repository snapshot.**
+## 🖥️ Requirements
 
-| Module | Purpose |
-|---|---|
-| **Wi-Fi Scanner** | Inspect nearby access points and available adapter metrics such as signal, channel, band, and link rate. |
-| **Home Survey** | Record signal readings against user-selected positions on a calibrated floor plan. |
-| **Floor Plan Editor** | Model rooms, walls, doors, windows, materials, and router locations. |
-| **3D Home View** | Visualize floor-plan geometry and access-point positions in a 3D scene. |
-| **2D Signal Heatmap** | Interpolate collected measurements using methods such as Inverse Distance Weighting (IDW). |
-| **3D Coverage Map** | Explore modelled RF propagation and compare predictions with measured samples. |
-| **Router Optimizer** | Compare candidate access-point placements and channel conditions. |
-| **Volumetric Scanner** | Visualize spatial RSSI datasets as point clouds or voxel-like views. |
-| **CSI Sensing** | Process compatible CSI streams for experimental motion/presence analysis. |
-| **History & Export** | Compare survey sessions and exchange project data. |
-| **Hardware Status** | Distinguish connected hardware from simulation or archived-data modes. |
+- Windows 10 or Windows 11 x64.
+- Python 3.10 or newer.
+- PowerShell 5.1 or PowerShell 7.
+- A Windows WLAN-supported Wi-Fi adapter for live scanning.
+- Internet access is needed once to install Python packages. The app itself serves locally on your PC; the UI does not load external JavaScript libraries or fonts.
 
-## 🧱 Hardware tiers
+Windows may require **Settings → Privacy & security → Location → Let desktop apps access your location** to allow nearby Wi-Fi/BSSID enumeration.
 
-NightHawk separates standard PC functionality from optional sensing equipment.
+## ⚡ Quick start
 
-<details>
-<summary><strong>Tier 1 — Standard Windows PC + Wi-Fi router</strong></summary>
+Open PowerShell in the cloned repository directory.
 
-- Windows 10/11 x64 computer.
-- Integrated or USB Wi-Fi adapter supported by Windows WLAN AutoConfig.
-- Existing Wi-Fi router or access point.
-- Intended for WLAN discovery, adapter metrics, manual survey workflows, floor-plan modelling, and software-based RF visualization.
-
-</details>
-
-<details>
-<summary><strong>Tier 2 — Optional ESP32 CSI hardware</strong></summary>
-
-- Compatible ESP32-family board and USB serial connection.
-- Supported CSI firmware and appropriate device/driver setup.
-- Intended for collecting CSI measurements for experimental signal-based motion or presence analysis.
-- CSI access is not provided by every router or Wi-Fi adapter.
-
-</details>
-
-<details>
-<summary><strong>Tier 3 — Optional motorized scanning rig</strong></summary>
-
-- Motorized 2-axis or 3-axis frame.
-- Compatible controller and probe hardware.
-- Intended for repeatable physical spatial sampling.
-- Not required for ordinary Wi-Fi scanning or floor-plan work.
-
-</details>
-
-**Important limitation:** Consumer Wi-Fi equipment does not provide genuine architectural X-ray vision. Floor plans must be drawn or imported; RF measurements and propagation estimates cannot reveal detailed wall structures by themselves.
-
-See **[Hardware Requirements & Truth Matrix](HARDWARE_REQUIREMENTS.md)** for details.
-
-## 🖥️ Repository status & getting started
-
-### Current repository snapshot
-
-The current `main` branch contains project documentation, audit material, PowerShell utility scripts, and the static GitHub Pages landing page. The application source directories referenced by the setup scripts (such as `nighthawk-backend` and `nighthawk-ui`) are **not present in the currently published repository tree**.
-
-The implementation tracker describes completed modules, but those source folders are not available in this public snapshot for an independent fresh-clone build. Treat the feature list as the project's documented design/status, not as a verified downloadable application.
-
-### Before running the setup scripts
-
-The current PowerShell scripts also contain a machine-specific base path:
-
-```text
-C:\Users\nayan\project-nighthawk
-```
-
-That path will not match most users' clone locations. The scripts need to be made portable (for example, by using `$PSScriptRoot`) and the referenced application source folders need to be included before the quick-start workflow can work from a fresh clone.
-
-### Clone the repository
+### 1. Clone
 
 ```powershell
 git clone https://github.com/deepnayan832/Night-Hawk.git
 Set-Location Night-Hawk
 ```
 
-Review these files first:
+### 2. Install dependencies and run tests
 
-- [Implementation Status](IMPLEMENTATION_STATUS.md)
-- [Architecture](ARCHITECTURE.md)
-- [Hardware Requirements](HARDWARE_REQUIREMENTS.md)
-- [Repository Audit](REPOSITORY_AUDIT.md)
-- [License Audit](LICENSE_AUDIT.md)
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\setup.ps1
+```
 
-<blockquote>
-<strong>Setup is not currently a verified one-command install.</strong> Do not run <code>setup.ps1</code> expecting a clean build from a fresh clone until the missing application folders are committed and the hard-coded paths in the scripts are corrected.
-</blockquote>
+This creates a local `.venv`, installs the small Python dependency set from `requirements.txt`, compiles the Python files, and runs the unit tests.
 
-## 🏗️ Architecture overview
+### 3. Launch
 
-The documented target architecture is organized into four layers:
+```powershell
+.\start.ps1
+```
 
-1. **Frontend** — React, TypeScript, Tailwind CSS, Three.js, and interactive spatial views.
-2. **Local API** — Python/FastAPI services for Wi-Fi polling, surveys, RF calculations, hardware adapters, and data exchange.
-3. **Analysis** — measured-signal interpolation, propagation estimates, router-placement analysis, and optional CSI processing.
-4. **Local storage & devices** — SQLite/project files, Windows WLAN services, optional ESP32 serial devices, and optional motor controllers.
+Open manually at [http://127.0.0.1:8765](http://127.0.0.1:8765) if the browser does not open automatically.
 
-For the detailed design and data flow, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+### 4. Stop
 
-## 🔬 RF modelling principles
+```powershell
+.\stop.ps1
+```
 
-The project documentation describes a combination of measured and modelled approaches:
+Run diagnostics at any time:
 
-- **Measured signal:** RSSI values collected from the Windows network adapter at known survey positions.
-- **Interpolation:** IDW/RBF-style methods to estimate values between recorded survey points.
-- **Propagation modelling:** Free-Space Path Loss (FSPL) and material/floor attenuation estimates.
-- **Validation:** Compare predicted values with measurements and expose residual/error information where available.
+```powershell
+.\diagnose.ps1
+```
 
-A simulated coverage surface is an estimate, not a substitute for a real survey. Material attenuation values depend on frequency, construction, thickness, geometry, and environment.
+## 🧭 First-use workflow
 
-## 🔐 Privacy & responsible use
+1. Open **Wi-Fi Scanner** and select **Scan now**.
+2. Open **Home Survey** and create a survey session.
+3. Select the network you are measuring. Walk to a physical position and click that location on the plan.
+4. Save the sample. Repeat at several positions around the home.
+5. Open **Coverage Maps** and select the survey to generate a measured IDW heatmap.
+6. Open **Floor Plan & 3D** to adjust room size, draw internal walls with the correct material, and position the router.
+7. Generate the predicted RF map or run the router-position ranking. Validate any model suggestion with another walk survey.
 
-NightHawk is designed around local-first operation:
+## 🧪 How the RF model works
 
-- Keep survey projects and exports on the user's machine.
-- Clearly identify live readings, simulations, and archived sample data.
-- Use standard defensive WLAN discovery and adapter information.
-- Do not perform packet injection, deauthentication, password cracking, or unauthorized access.
-- Sanitize SSIDs/BSSIDs before sharing survey exports publicly.
+NightHawk keeps two different data sources separate:
 
-Local-first design does not automatically guarantee security. Review dependencies, permissions, data exports, and upstream code before use.
+- **Measured map:** inverse-distance weighting (IDW) between saved survey samples.
+- **Predicted map:** free-space path loss (FSPL) plus simplified material loss for wall segments crossed by the path from the router to a grid point.
 
-## 🧩 Upstream projects & attribution
+The predicted map uses indicative attenuation constants. Real losses depend on construction, wall thickness, moisture, furniture, antenna orientation, multipath and interference. Treat model output as a planning aid, not a calibrated measurement.
 
-The project documents research and integration references from these upstream repositories:
+## 📶 Signal accuracy
 
-<details>
-<summary><strong>View upstream repository audit (12 projects)</strong></summary>
+Windows `netsh wlan show networks mode=bssid` typically reports signal quality as a percentage, not calibrated RSSI in dBm. NightHawk converts that percentage to an approximate display value using:
 
-| Repository | Area | Upstream license noted in audit |
-|---|---|---|
-| [hnykda/wifi-heatmapper](https://github.com/hnykda/wifi-heatmapper) | Windows Wi-Fi scanning and heatmaps | MIT |
-| [dcchill/open-heat](https://github.com/dcchill/open-heat) | WLAN parsing and diagnostics | MIT |
-| [J0nan/Wi-Fi_HeatMap](https://github.com/J0nan/Wi-Fi_HeatMap) | 2D interpolation and floor-plan calibration | MIT |
-| [ribaldorafael/wifi-heatmap](https://github.com/ribaldorafael/wifi-heatmap) | Channel analysis and heatmap patterns | MIT |
-| [NC4321/SignalPlan](https://github.com/NC4321/SignalPlan) | RF propagation and 3D floor-plan concepts | MIT |
-| [Neumi/3D_wifi_scanner](https://github.com/Neumi/3D_wifi_scanner) | Volumetric RSSI dataset and visualization | Custom / review upstream terms |
-| [Neumi/ethersweep](https://github.com/Neumi/ethersweep) | Motorized scanner control | GPL-3.0 |
-| [DwayneCon/wifi-3d-fusion](https://github.com/DwayneCon/wifi-3d-fusion) | CSI preprocessing | Apache-2.0 |
-| [s-shrikanth/WiFi-CSI-Human-Detection](https://github.com/s-shrikanth/WiFi-CSI-Human-Detection) | CSI-based motion analysis | MIT |
-| [csi-rs/csi-gui-rs](https://github.com/csi-rs/csi-gui-rs) | CSI framing and device interface | MIT / Apache-2.0 |
-| [csi-rs/esp-csi-cli-rs](https://github.com/csi-rs/esp-csi-cli-rs) | ESP32 CSI streaming | MIT / Apache-2.0 |
-| [StevenMHernandez/ESP32-CSI-Tool](https://github.com/StevenMHernandez/ESP32-CSI-Tool) | ESP32 CSI firmware/tooling | MIT |
+```text
+estimated_dBm = (signal_percent / 2) - 100
+```
 
-</details>
+That conversion is approximate. The app labels its origin in the saved `measurement_source` field. Manual dBm entry is available for measurements obtained from a calibrated instrument or a driver that exposes actual RSSI.
 
-Upstream licenses remain applicable to the relevant code and assets. A repository-level MIT license does **not** relicense third-party material. Review [LICENSE_AUDIT.md](LICENSE_AUDIT.md) before redistributing integrated components.
+## 💾 Data and privacy
 
-## 🗺️ Project documentation
+- Local database: `%USERPROFILE%\.nighthawk\nighthawk.sqlite3`.
+- Override the storage directory with the `NIGHTHAWK_DATA_DIR` environment variable before starting the server.
+- The service binds to `127.0.0.1` only; it is not exposed to your LAN by default.
+- Survey points and floor plans are not uploaded by the application.
+- Wi-Fi scanning uses Windows WLAN commands; it does not crack passwords, inject packets, or deauthenticate clients.
 
-| Document | Description |
+## 🏗️ Architecture
+
+```text
+Browser UI (HTML / CSS / JavaScript)
+          │ same-origin HTTP
+          ▼
+FastAPI local server (127.0.0.1:8765)
+          ├── Windows WLAN adapter (netsh)
+          ├── RF maths (FSPL, wall loss, IDW)
+          └── SQLite (%USERPROFILE%/.nighthawk/)
+```
+
+Key source files:
+
+| Path | Responsibility |
 |---|---|
-| [Architecture](ARCHITECTURE.md) | System components, data flow, and design decisions |
-| [Hardware Requirements](HARDWARE_REQUIREMENTS.md) | Hardware tiers, capability boundaries, and limitations |
-| [Implementation Status](IMPLEMENTATION_STATUS.md) | Project-reported implementation progress |
-| [Repository Audit](REPOSITORY_AUDIT.md) | Upstream repository research and integration notes |
-| [License Audit](LICENSE_AUDIT.md) | Third-party license review |
-| [GitHub Pages](https://deepnayan832.github.io/Night-Hawk/) | Static project landing page |
+| `nighthawk-backend/main.py` | FastAPI routes, validation and static app serving |
+| `nighthawk-backend/wifi.py` | Windows WLAN scanner and signal-quality normalization |
+| `nighthawk-backend/rf.py` | FSPL, wall intersection/attenuation, IDW and grid generation |
+| `nighthawk-backend/db.py` | SQLite schema and persistence |
+| `nighthawk-backend/static/` | Browser interface and visualizations |
+| `nighthawk-backend/tests/` | RF and database unit tests |
+
+## 🧰 API endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/health` | Service and local database status |
+| GET | `/api/hardware/status` | Hardware capability and limitation report |
+| GET | `/api/wifi/scan` | Scan Windows-visible Wi-Fi networks |
+| GET / PUT | `/api/project` | Read or save the floor plan and router settings |
+| GET / POST | `/api/surveys` | List or create survey sessions |
+| GET / POST | `/api/surveys/{id}/points` | Read or save survey points |
+| GET | `/api/coverage/measured` | Generate IDW coverage from saved points |
+| GET | `/api/coverage/predicted` | Generate simplified RF model coverage |
+| GET | `/api/router/optimize` | Rank candidate router positions |
+| GET | `/api/surveys/{id}/export.csv` | Export survey samples to CSV |
+
+Interactive API documentation is available at [http://127.0.0.1:8765/docs](http://127.0.0.1:8765/docs) while the server is running.
+
+## 🧱 Hardware tiers and limitations
+
+| Tier | Hardware | Current state |
+|---|---|---|
+| Tier 1 | Windows PC + ordinary Wi-Fi adapter/router | Supported for netsh scanning, survey workflow and model-based visualization |
+| Tier 2 | Compatible ESP32 CSI board + firmware | Not implemented; hardware and serial protocol integration remain future work |
+| Tier 3 | Motorized 2D/3D gantry + probe/controller | Not implemented; external rig integration remains future work |
+
+Ordinary Wi-Fi hardware does not provide high-resolution through-wall structural imaging. CSI sensing, where supported by compatible hardware, can reveal channel variations associated with motion but is not architectural X-ray vision.
+
+## 🧪 Tests and CI
+
+Run tests locally:
+
+```powershell
+Push-Location .\nighthawk-backend
+..\.venv\Scripts\python.exe -m unittest discover -s tests -v
+Pop-Location
+```
+
+GitHub Actions also runs Python compilation, unit tests, and JavaScript syntax validation on pushes and pull requests.
 
 ## 🤝 Contributing
 
-Contributions, issue reports, documentation fixes, and reproducible test results are welcome.
+Bug reports and reproducible fixes are welcome. Include your Windows version, Wi-Fi adapter/driver, Python version, steps to reproduce, and whether a value was measured, estimated or manually entered. Never publish private SSIDs/BSSIDs or raw household survey data without checking the export first.
 
-1. Check existing [issues](https://github.com/deepnayan832/Night-Hawk/issues) before opening a duplicate.
-2. Describe your Windows version, Wi-Fi adapter model, and reproduction steps.
-3. Separate measured results from simulated or archived data in reports.
-4. Include tests or verification steps for code changes.
-5. Preserve upstream notices and license obligations when working with third-party code.
+## 📚 Project documents
+
+- [Implementation status](IMPLEMENTATION_STATUS.md)
+- [System architecture](ARCHITECTURE.md)
+- [Hardware requirements](HARDWARE_REQUIREMENTS.md)
+- [Upstream research audit](REPOSITORY_AUDIT.md)
+- [License notes](LICENSE_AUDIT.md)
 
 ## 📄 License
 
-The project-level license is [MIT](LICENSE). Third-party components may have different licenses; see [LICENSE_AUDIT.md](LICENSE_AUDIT.md) and the original upstream repositories.
+The NightHawk original code is licensed under [MIT](LICENSE). Referenced upstream repositories retain their own licenses and terms. No upstream repository should be assumed to be bundled into NightHawk unless the corresponding source and notices are actually present.
 
 ---
 
 <div align="center">
 
-**NightHawk — make wireless environments visible, measurable, and understandable.**
+**NightHawk — measure first. Model second. Never fake the signal.**
 
-[Website](https://deepnayan832.github.io/Night-Hawk/) · [Repository](https://github.com/deepnayan832/Night-Hawk) · [Report a bug](https://github.com/deepnayan832/Night-Hawk/issues)
+[Website](https://deepnayan832.github.io/Night-Hawk/) · [Repository](https://github.com/deepnayan832/Night-Hawk) · [Report an issue](https://github.com/deepnayan832/Night-Hawk/issues)
 
 </div>
