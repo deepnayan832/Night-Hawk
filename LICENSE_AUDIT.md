@@ -1,61 +1,43 @@
-# Project Nighthawk — License Audit
+# NightHawk — License and Third-Party Notes
 
-Date: November 2026  
-Status: Compliant  
+**Project license:** MIT  
+**Copyright holder:** Nayan Deep  
+**Current source status:** The Tier 1 application files in this repository are original NightHawk implementation code. The upstream projects below are research references and are not bundled as imported source dependencies in the current application.
 
-This document reviews the open-source licenses of all 12 repositories integrated or referenced in Project Nighthawk, establishes attribution requirements, and details boundary isolation strategies to ensure strict legal and licensing compliance.
+## 1. NightHawk project license
 
----
+The project-level license is in [LICENSE](LICENSE). It applies to original NightHawk code, subject to the exclusions and independent rights of third-party components, if any are added in future.
 
-## 1. Upstream License Inventory
+## 2. Upstream research references
 
-| Repository | Declared License | Copyright / Originator | Compatibility with Nighthawk Core | Action Taken |
-|---|---|---|---|---|
-| `wifi-heatmapper` | MIT | Daniel Alder | Permissive (Direct reuse permitted) | Retained copyright notices; adapted scanning and WebGL heatmap routines. |
-| `open-heat` | MIT | dcchill | Permissive (Direct reuse permitted) | Retained copyright notices; adapted netsh parsing logic. |
-| `Wi-Fi_HeatMap` | MIT | J0nan | Permissive (Direct reuse permitted) | Retained copyright notices; adapted spatial interpolation logic. |
-| `wifi-heatmap` | MIT | Rafael Ribaldo | Permissive (Direct reuse permitted) | Retained copyright notices; adapted channel conflict & dead-zone analytics. |
-| `SignalPlan` | MIT | NC4321 | Permissive (Direct reuse permitted) | Retained copyright notices; adopted floor plan schema and RF propagation equations. |
-| `3D_wifi_scanner` | None (All Rights Reserved) | Neumi | Proprietary/Unlicensed upstream | Clean-room implementation of volumetric data structure and CSV parser; no direct source code copy. |
-| `ethersweep` | GNU GPL v3.0 | Neumi | Reciprocal (Copyleft) | Architectural boundary isolation: Driver treated as external microservice / optional standalone utility over UDP/Serial. No GPL code linked into Nighthawk core. |
-| `wifi-3d-fusion` | Apache License 2.0 | DwayneCon | Permissive with patent clause | Compliant; retained Apache-2.0 notice; extracted mathematical formulas. |
-| `WiFi-CSI-Human-Detection` | MIT | S. Shrikanth | Permissive | Retained copyright notices; ported variance formulas. |
-| `csi-gui-rs` | MIT / Apache-2.0 Dual | csi-rs contributors | Permissive | Retained attribution; adapted wire-v1 framing specification. |
-| `esp-csi-cli-rs` | MIT / Apache-2.0 Dual | csi-rs contributors | Permissive | Referenced as external firmware target. |
-| `ESP32-CSI-Tool` | MIT | Steven M. Hernandez | Permissive | Retained copyright notices; adapted serial CSV parser. |
+The following repositories were reviewed as potential references for Wi-Fi surveying, RF modelling, CSI research, or volumetric scanning. Listing a repository here does not mean its source code is copied, linked, bundled, or integrated into NightHawk.
 
----
+| Repository | Research area | License noted during prior review |
+|---|---|---|
+| [hnykda/wifi-heatmapper](https://github.com/hnykda/wifi-heatmapper) | Windows Wi-Fi scanning and survey workflow | MIT |
+| [dcchill/open-heat](https://github.com/dcchill/open-heat) | netsh WLAN parsing and diagnostics | MIT |
+| [J0nan/Wi-Fi_HeatMap](https://github.com/J0nan/Wi-Fi_HeatMap) | 2D interpolation and floor-plan calibration | MIT |
+| [ribaldorafael/wifi-heatmap](https://github.com/ribaldorafael/wifi-heatmap) | Heatmap analysis and coverage metrics | MIT |
+| [NC4321/SignalPlan](https://github.com/NC4321/SignalPlan) | Floor-plan and RF propagation concepts | MIT |
+| [Neumi/3D_wifi_scanner](https://github.com/Neumi/3D_wifi_scanner) | Volumetric RSSI research and datasets | No license was identified in prior review; do not copy or redistribute without permission |
+| [Neumi/ethersweep](https://github.com/Neumi/ethersweep) | Motorized scanner controller research | GPL-3.0 |
+| [DwayneCon/wifi-3d-fusion](https://github.com/DwayneCon/wifi-3d-fusion) | CSI preprocessing and fusion research | Apache-2.0 |
+| [s-shrikanth/WiFi-CSI-Human-Detection](https://github.com/s-shrikanth/WiFi-CSI-Human-Detection) | CSI-based movement research | MIT |
+| [csi-rs/csi-gui-rs](https://github.com/csi-rs/csi-gui-rs) | CSI serial protocol and GUI research | MIT / Apache-2.0 |
+| [csi-rs/esp-csi-cli-rs](https://github.com/csi-rs/esp-csi-cli-rs) | ESP32 CSI firmware research | MIT / Apache-2.0 |
+| [StevenMHernandez/ESP32-CSI-Tool](https://github.com/StevenMHernandez/ESP32-CSI-Tool) | ESP32 CSI capture tooling | MIT |
 
-## 2. License Compatibility & Isolation Strategy
+The license column records the findings from the earlier repository review; upstream licenses can change and should be checked at the original source before any future code import.
 
-### A. Permissive Code (MIT & Apache 2.0)
-The majority of core repositories (`SignalPlan`, `wifi-heatmapper`, `open-heat`, `Wi-Fi_HeatMap`, `wifi-heatmap`, `WiFi-CSI-Human-Detection`, `ESP32-CSI-Tool`, `csi-gui-rs`) use the standard permissive MIT or Apache 2.0 licenses.
-- **Requirement:** Maintain copyright notices and permission disclaimers in modified or reused modules.
-- **Implementation:** Full attribution is placed in `THIRD_PARTY_LICENSES.md` and inline in the respective adapter files.
+## 3. Rules for future integration
 
-### B. Reciprocal / Copyleft Code (`ethersweep` — GPL v3.0)
-`ethersweep` is licensed under GNU GPL v3.0.
-- **Risk:** Directly linking GPL v3.0 code into an MIT or Apache-based project would subject the combined work to GPL-3.0 requirements.
-- **Solution:** Project Nighthawk communicates with motor controllers purely across a standard UDP network socket (`UDP_SEND_PORT = 8888`) or serial protocol with a generic JSON wire contract (`{"steps": N, "speed": V, "direction": D}`). No GPL code is compiled or imported into the main application. This adheres to FSF guidelines regarding network communication boundaries.
+Before integrating third-party code or datasets:
 
-### C. Unlicensed Repository (`3D_wifi_scanner`)
-`3D_wifi_scanner` does not provide an explicit open-source license file in its GitHub repository.
-- **Risk:** Reusing source code without an explicit license carries copyright infringement risk under default copyright law.
-- **Solution:** Clean-room implementation. Project Nighthawk reads standard mathematical volumetric coordinates `(x, y, z, RSSI)` through an independently authored CSV parser. The Three.js 3D volumetric scatter and voxel viewer is authored from scratch within Project Nighthawk.
+1. Inspect the upstream repository's current license file and notices.
+2. Preserve required copyright and license texts.
+3. Track the exact files or modules imported and the source commit.
+4. Review copyleft obligations before combining code with the MIT-licensed core.
+5. Do not redistribute unlicensed code or datasets without permission.
+6. Add the required notices to a dedicated third-party notices file.
 
----
-
-## 3. Third-Party Attributions
-
-Project Nighthawk gratefully acknowledges the pioneering contributions of the following authors:
-
-- **Daniel Alder** (`wifi-heatmapper`) — MIT License
-- **dcchill** (`open-heat`) — MIT License
-- **J0nan** (`Wi-Fi_HeatMap`) — MIT License
-- **Rafael Ribaldo** (`wifi-heatmap`) — MIT License
-- **NC4321** (`SignalPlan`) — MIT License
-- **Neumi** (`3D_wifi_scanner`, `ethersweep`) — Creator of volumetric Wi-Fi scanning concepts
-- **DwayneCon** (`wifi-3d-fusion`) — Apache-2.0 License
-- **S. Shrikanth** (`WiFi-CSI-Human-Detection`) — MIT License
-- **csi-rs team** (`csi-gui-rs`, `esp-csi-cli-rs`) — MIT / Apache-2.0 License
-- **Steven M. Hernandez** (`ESP32-CSI-Tool`) — MIT License
+No third-party source should be described as integrated until that source and its required notices are actually included in this repository.
