@@ -117,10 +117,10 @@ function drawPlan(canvas,showPoints=false){
   if(!canvas||!state.project)return;const {ctx,w,h}=canvasMetrics(canvas);const p=state.project;
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#0a1321";ctx.fillRect(0,0,w,h);
   const o=worldToCanvas(0,0,canvas),scale=o.scale,left=o.x,top=o.y-p.height_m*scale;
+  ctx.fillStyle="#102337";ctx.fillRect(left,top,p.width_m*scale,p.height_m*scale);
   ctx.strokeStyle="#1e2e42";ctx.lineWidth=1;
   for(let x=0;x<=p.width_m;x++){const q=worldToCanvas(x,0,canvas);ctx.beginPath();ctx.moveTo(q.x,top);ctx.lineTo(q.x,top+p.height_m*scale);ctx.stroke()}
   for(let y=0;y<=p.height_m;y++){const q=worldToCanvas(0,y,canvas);ctx.beginPath();ctx.moveTo(left,q.y);ctx.lineTo(left+p.width_m*scale,q.y);ctx.stroke()}
-  ctx.fillStyle="#102337";ctx.fillRect(left,top,p.width_m*scale,p.height_m*scale);
   ctx.strokeStyle="#628298";ctx.lineWidth=2;ctx.strokeRect(left,top,p.width_m*scale,p.height_m*scale);
   (p.walls||[]).forEach(wall=>{const a=worldToCanvas(wall.x1,wall.y1,canvas),b=worldToCanvas(wall.x2,wall.y2,canvas);ctx.strokeStyle=wallColor(wall.material);ctx.lineWidth=4;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()});
   const r=worldToCanvas(p.router.x,p.router.y,canvas);ctx.fillStyle="#66e2df";ctx.beginPath();ctx.arc(r.x,r.y,7,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#66e2df55";ctx.lineWidth=8;ctx.beginPath();ctx.arc(r.x,r.y,13,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#b9f6ef";ctx.font="10px Manrope";ctx.fillText("ROUTER",r.x+12,r.y-10);
