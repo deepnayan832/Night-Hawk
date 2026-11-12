@@ -11,10 +11,10 @@ const api = async (path, options={}) => {
 function toast(message,error=false){const el=$("toast");el.textContent=message;el.className="toast show"+(error?" error":"");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.className="toast",3200)}
 function dbmColor(v){if(v==null)return "#26364d";if(v>=-55)return "#54d49b";if(v>=-70)return "#d4cc68";if(v>=-85)return "#df9465";return "#ba5e78"}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function showView(name){document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+name));document.querySelectorAll(".nav-item").forEach(v=>v.classList.toggle("active",v.dataset.view===name));$("pageTitle").textContent=titles[name];if(name==="survey")drawPlan($("surveyCanvas"),true);if(name==="floorplan")drawAllPlans();if(name==="coverage"&&state.coverage)drawHeat();if(name==="overview")refreshStats()}
+function showView(name){document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+name));document.querySelectorAll(".nav-item").forEach(v=>v.classList.toggle("active",v.dataset.view===name));$("pageTitle").textContent=titles[name];if(name==="survey")drawPlan($("surveyCanvas"),true);if(name==="floorplan")drawAllPlans();if(name==="coverage"&&state.coverage){drawHeat();drawCoverage3D();}if(name==="overview")refreshStats()}
 document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));
 document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.go)));
-window.addEventListener("resize",()=>{drawAllPlans();if(state.coverage)drawHeat()});
+window.addEventListener("resize",()=>{drawAllPlans();if(state.coverage){drawHeat();drawCoverage3D()}});
 async function boot(){
   try{
     const [health,project,sessions]=await Promise.all([api("/api/health"),api("/api/project"),api("/api/surveys")]);
@@ -128,6 +128,7 @@ function renderWallList(){$("wallList").innerHTML=(state.project?.walls||[]).map
 $("wallList").addEventListener("click",async e=>{const b=e.target.closest("[data-remove-wall]");if(!b)return;state.project.walls.splice(Number(b.dataset.removeWall),1);renderWallList();drawAllPlans();await saveProject()});
 $("planMode").addEventListener("change",e=>{state.mode=e.target.value;state.wallStart=null;$("toolHelp").textContent=state.mode==="wall"?"Click two points on the plan to add a wall.":state.mode==="router"?"Click the plan to move the router.":"Choose Draw wall or Place router to edit the plan.";});
 $("orbit").addEventListener("input",drawScene);
+$("coverageOrbit").addEventListener("input",drawCoverage3D);
 function canvasMetrics(canvas,width,height){
   const rect=canvas.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);
   const w=Math.max(1,Math.floor(rect.width*dpr)),h=Math.max(1,Math.floor(rect.height*dpr));
@@ -201,7 +202,7 @@ async function loadCoverage(kind){
     $("coverageType").textContent=kind==="measured"?"MEASURED · IDW":"MODEL · ESTIMATE";
     $("coverageRange").textContent=data.min_dbm==null?"No data":data.min_dbm+" to "+data.max_dbm+" dBm";
     $("coverageCount").textContent=kind==="measured"?data.point_count+" survey points":"Frequency "+(data.frequency_mhz/1000).toFixed(1)+" GHz";
-    drawHeat();toast(kind==="measured"?"Measured coverage calculated":"RF model calculated");
+    drawHeat();drawCoverage3D();toast(kind==="measured"?"Measured coverage calculated":"RF model calculated");
   }catch(e){toast(e.message,true)}
 }
 $("loadMeasured").addEventListener("click",()=>loadCoverage("measured"));
@@ -216,6 +217,35 @@ function drawHeat(){
   const p=state.project;const rx=left+p.router.x/p.width_m*dw,ry=top+dh-p.router.y/p.height_m*dh;ctx.fillStyle="#07131b";ctx.strokeStyle="#e9ffff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(rx,ry,7,0,Math.PI*2);ctx.fill();ctx.stroke();
   if(state.coverageKind==="measured")state.coveragePoints.forEach(pt=>{const x=left+pt.x/p.width_m*dw,y=top+dh-pt.y/p.height_m*dh;ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill()});
 }
+
+function drawCoverage3D(){
+  const canvas=$("coverage3dCanvas"),d=state.coverage;if(!canvas||!d||!state.project)return;
+  const {ctx,w,h}=canvasMetrics(canvas);ctx.clearRect(0,0,w,h);ctx.fillStyle="#0a1321";ctx.fillRect(0,0,w,h);
+  const p=state.project,angle=Number($("coverageOrbit").value||0)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
+  const scale=Math.min(w/(d.width_m+d.height_m+3),h/((d.width_m+d.height_m)*.62+3.8))*.82;
+  const cx=w/2,base=h*.76;
+  const project=(x,y,z)=>{const dx=x-d.width_m/2,dy=y-d.height_m/2,u=c*dx-s*dy,v=s*dx+c*dy;return {x:cx+(u-v)*scale,y:base+(u+v)*scale*.46-z*scale*.9,depth:u+v}};
+  const rows=d.values,n=rows.length;if(n<2)return;
+  const point=(ix,iy)=>{
+    const val=rows[iy][ix];const safe=val==null?-100:val;
+    const elevation=Math.max(.08,Math.min(2.5,(safe+100)/55*2.5));
+    return {...project(d.xs[ix],d.ys[iy],elevation),value:safe};
+  };
+  const tris=[];
+  for(let y=0;y<n-1;y++)for(let x=0;x<n-1;x++){
+    const a=point(x,y),b=point(x+1,y),c1=point(x+1,y+1),e=point(x,y+1);
+    const v1=(a.value+b.value+c1.value)/3,v2=(a.value+c1.value+e.value)/3;
+    tris.push({pts:[a,b,c1],value:v1,depth:(a.depth+b.depth+c1.depth)/3});
+    tris.push({pts:[a,c1,e],value:v2,depth:(a.depth+c1.depth+e.depth)/3});
+  }
+  tris.sort((a,b)=>b.depth-a.depth);
+  for(const tri of tris){ctx.beginPath();ctx.moveTo(tri.pts[0].x,tri.pts[0].y);ctx.lineTo(tri.pts[1].x,tri.pts[1].y);ctx.lineTo(tri.pts[2].x,tri.pts[2].y);ctx.closePath();ctx.fillStyle=dbmColor(tri.value);ctx.globalAlpha=.91;ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle="#07121c55";ctx.lineWidth=.45;ctx.stroke()}
+  const floor=[[0,0],[p.width_m,0],[p.width_m,p.height_m],[0,p.height_m]].map(q=>project(q[0],q[1],0));
+  ctx.strokeStyle="#8ca8bc";ctx.lineWidth=1.5;ctx.beginPath();floor.forEach((q,i)=>i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y));ctx.closePath();ctx.stroke();
+  const r=project(p.router.x,p.router.y,2.7);ctx.fillStyle="#f4ffff";ctx.strokeStyle="#07131b";ctx.lineWidth=2;ctx.beginPath();ctx.arc(r.x,r.y,5,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.fillStyle="#8aa1b8";ctx.font="10px Consolas,monospace";ctx.fillText(state.coverageKind==="measured"?"MEASURED IDW · 3D SURFACE":"MODELLED RF · 3D SURFACE",14,18);
+}
+
 async function loadSessionDropdowns(){
   state.sessions=await api("/api/surveys");fillSessions();refreshStats();
 }
