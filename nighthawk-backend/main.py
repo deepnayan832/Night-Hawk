@@ -213,3 +213,46 @@ def survey_export_csv(session_id: int) -> Response:
         content=buffer.getvalue(), media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="nighthawk-survey-{session_id}.csv"'},
     )
+
+
+@app.get("/api/router/optimize")
+def router_optimize(
+    step_m: float = Query(default=1.0, ge=0.5, le=5.0),
+    resolution: int = Query(default=10, ge=5, le=20),
+) -> dict[str, Any]:
+    """Rank candidate router locations by mean modelled RSSI across a coarse grid."""
+    project = db.get_project()
+    width, height = float(project["width_m"]), float(project["height_m"])
+    xs = [width * i / (resolution - 1) for i in range(resolution)]
+    ys = [height * i / (resolution - 1) for i in range(resolution)]
+    candidates: list[dict[str, Any]] = []
+    x = min(step_m / 2.0, width / 2.0)
+    while x <= width - min(step_m / 2.0, width / 2.0) + 1e-9:
+        y = min(step_m / 2.0, height / 2.0)
+        while y <= height - min(step_m / 2.0, height / 2.0) + 1e-9:
+            router = {"x": x, "y": y}
+            samples = [
+                predict_rssi_dbm(
+                    sx, sy, router, project["walls"],
+                    int(project["frequency_mhz"]), float(project["tx_power_dbm"]),
+                )
+                for sx in xs for sy in ys
+            ]
+            ordered = sorted(samples)
+            candidates.append({
+                "x": round(x, 2), "y": round(y, 2),
+                "mean_rssi_dbm": round(sum(samples) / len(samples), 1),
+                "worst_decile_dbm": round(ordered[max(0, int(len(ordered) * 0.1) - 1)], 1),
+            })
+            y += step_m
+        x += step_m
+    candidates.sort(
+        key=lambda item: (item["mean_rssi_dbm"] + 0.35 * item["worst_decile_dbm"]),
+        reverse=True,
+    )
+    return {
+        "recommendations": candidates[:5],
+        "best": candidates[0] if candidates else None,
+        "method": "Coarse grid search maximizing mean predicted RSSI with a weak-area penalty",
+        "notice": "The optimizer uses the same simplified RF model as the predicted map. Validate placement with a real walk survey.",
+    }
