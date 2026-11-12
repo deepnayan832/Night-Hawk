@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#080d18">
+  <title>NightHawk — Local Wi-Fi Intelligence</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="#"><span class="brand-mark">N</span><span>NIGHT<span class="cyan">HAWK</span><small>WI-FI INTELLIGENCE</small></span></a>
+    <div class="side-label">WORKSPACE</div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="overview"><span>◈</span> Overview</button>
+      <button class="nav-item" data-view="scanner"><span>⌁</span> Wi-Fi Scanner</button>
+      <button class="nav-item" data-view="survey"><span>⌖</span> Home Survey</button>
+      <button class="nav-item" data-view="floorplan"><span>▦</span> Floor Plan & 3D</button>
+      <button class="nav-item" data-view="coverage"><span>◉</span> Coverage Maps</button>
+    </nav>
+    <div class="side-bottom">
+      <div class="local-indicator"><i></i><span>LOCAL SESSION</span></div>
+      <div class="side-version">NIGHTHAWK 1.0 · WINDOWS</div>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div><div class="eyebrow">WIRELESS ENVIRONMENT ANALYSIS</div><h1 id="pageTitle">Overview</h1></div>
+      <div class="top-actions"><span class="api-status" id="apiStatus"><i></i> Connecting</span><button class="icon-btn" id="refreshAll" title="Refresh data">↻</button></div>
+    </header>
+
+    <section class="view active" id="view-overview">
+      <div class="hero-panel">
+        <div><div class="eyebrow">YOUR SPACE · YOUR DATA</div><h2>Make invisible signals<br><em>measurable.</em></h2><p>Survey your Wi-Fi environment, map real signal readings and compare them with a physics-inspired indoor coverage model.</p><div class="hero-actions"><button class="btn primary" data-go="scanner">Scan Wi-Fi <span>↗</span></button><button class="btn secondary" data-go="floorplan">Open floor plan</button></div></div>
+        <div class="radar"><div class="radar-ring r1"></div><div class="radar-ring r2"></div><div class="radar-ring r3"></div><div class="radar-sweep"></div><b>RF</b><span class="radar-dot d1"></span><span class="radar-dot d2"></span><span class="radar-dot d3"></span></div>
+      </div>
+      <div class="stats-grid">
+        <article class="stat-card"><span class="stat-icon">⌁</span><div class="stat-label">VISIBLE ACCESS POINTS</div><strong id="statAps">—</strong><small id="statApsNote">Run a Wi-Fi scan</small></article>
+        <article class="stat-card"><span class="stat-icon">⌖</span><div class="stat-label">SURVEY MEASUREMENTS</div><strong id="statPoints">0</strong><small>Saved locally in SQLite</small></article>
+        <article class="stat-card"><span class="stat-icon">▦</span><div class="stat-label">FLOOR PLAN</div><strong id="statArea">80 m²</strong><small id="statPlan">My Home · 10 × 8 m</small></article>
+        <article class="stat-card"><span class="stat-icon">◉</span><div class="stat-label">ACTIVE SURVEYS</div><strong id="statSessions">0</strong><small>Saved survey sessions</small></article>
+      </div>
+      <div class="section-heading"><div><div class="eyebrow">SYSTEM SNAPSHOT</div><h3>Workspace status</h3></div></div>
+      <div class="status-grid">
+        <article class="status-card"><span class="status-dot green"></span><div><b>Local API</b><p id="apiDetail">Checking local service…</p></div><span class="status-tag" id="apiBadge">CHECKING</span></article>
+        <article class="status-card"><span class="status-dot" id="wifiDot"></span><div><b>Windows Wi-Fi scanner</b><p id="wifiDetail">Not scanned yet</p></div><span class="status-tag" id="wifiBadge">IDLE</span></article>
+        <article class="status-card"><span class="status-dot amber"></span><div><b>Optional CSI hardware</b><p>ESP32 capture is not included in this release</p></div><span class="status-tag warning">NOT CONNECTED</span></article>
+      </div>
+      <div class="notice"><b>Measurement integrity</b><p>Live Windows signal quality is reported as a percentage. The app shows an approximate RSSI conversion for orientation only. Modelled coverage is an estimate, not a live measurement or through-wall image.</p></div>
+    </section>
+
+    <section class="view" id="view-scanner">
+      <div class="view-intro"><div><div class="eyebrow">TIER 1 · WINDOWS WLAN</div><h2>Nearby wireless networks</h2><p>Scan access points visible to your Windows Wi-Fi adapter.</p></div><button class="btn primary" id="scanButton">↻ Scan now</button></div>
+      <div class="scanner-summary"><div><span>CONNECTED NETWORK</span><strong id="connectedSsid">Not connected</strong><small id="connectedSignal">—</small></div><div><span>ACCESS POINTS FOUND</span><strong id="networkCount">—</strong><small id="scanTime">Never scanned</small></div></div>
+      <div class="panel"><div class="panel-head"><div><h3>Detected access points</h3><p>Results are collected by Windows netsh WLAN commands.</p></div><span class="live-pill"><i></i> ON-DEMAND</span></div>
+        <div class="table-wrap"><table><thead><tr><th>NETWORK / SSID</th><th>BSSID</th><th>SIGNAL</th><th>CHANNEL</th><th>BAND</th><th>SECURITY</th></tr></thead><tbody id="networkRows"><tr><td colspan="6" class="empty">Select Scan now to discover nearby access points.</td></tr></tbody></table></div>
+      </div>
+      <div class="notice warning-notice"><b>About RSSI</b><p>Windows netsh usually exposes signal quality as a percentage. NightHawk converts that percentage to a rough dBm estimate and labels it as an estimate. It is not a calibrated hardware RSSI measurement. Nearby-network listing may require Windows Location access.</p></div>
+    </section>
+
+    <section class="view" id="view-survey">
+      <div class="view-intro"><div><div class="eyebrow">REAL-WORLD WALK SURVEY</div><h2>Collect signal measurements</h2><p>Walk to a position, click the floor plan, and save the current Wi-Fi reading.</p></div><button class="btn primary" id="newSurvey">＋ New survey</button></div>
+      <div class="toolbar"><label>Survey session<select id="sessionSelect"><option value="">No survey session</option></select></label><label>Network<select id="networkSelect"><option value="">Scan networks first</option></select></label><label>RSSI dBm<input type="number" id="manualRssi" min="-120" max="-10" step="1" placeholder="e.g. -61"></label><button class="btn secondary" id="capturePoint" disabled>＋ Save point</button></div>
+      <div class="work-grid"><div class="panel map-panel"><div class="panel-head"><div><h3>Choose your physical position</h3><p>Click inside the plan to set the measurement location.</p></div><span class="coord-pill" id="selectedCoord">No position selected</span></div><div class="canvas-wrap"><canvas id="surveyCanvas"></canvas></div><div class="canvas-foot"><span>Click a location on the plan</span><span>Coordinates in metres</span></div></div>
+      <div class="panel side-panel"><div class="panel-head"><div><h3>Session measurements</h3><p>Saved to your local database.</p></div></div><div class="big-number" id="sessionPointCount">0 <small>points</small></div><div class="point-list" id="recentPoints"><div class="empty">No measurements in this session yet.</div></div><button class="btn secondary full" id="exportCsv" disabled>↓ Export session CSV</button></div></div>
+    </section>
+
+    <section class="view" id="view-floorplan">
+      <div class="view-intro"><div><div class="eyebrow">SPATIAL MODEL EDITOR</div><h2>Build your floor plan</h2><p>Set room dimensions, draw walls and position your access point.</p></div><button class="btn primary" id="saveProject">Save floor plan</button></div>
+      <div class="editor-layout">
+        <div class="panel editor-panel"><div class="panel-head"><div><h3>Plan settings</h3><p>All dimensions are in metres.</p></div><span class="saved-label" id="savedLabel">LOCAL PROJECT</span></div>
+          <div class="form-grid"><label>Project name<input id="projectName" maxlength="80"></label><label>Width (m)<input type="number" id="planWidth" min="2" max="100" step=".5"></label><label>Height (m)<input type="number" id="planHeight" min="2" max="100" step=".5"></label><label>Wall height (m)<input type="number" id="wallHeight" min="1" max="10" step=".1"></label><label>Frequency<select id="frequency"><option value="2400">2.4 GHz</option><option value="5000">5 GHz</option><option value="6000">6 GHz</option></select></label><label>Transmit power (dBm)<input type="number" id="txPower" min="0" max="30" step="1"></label><label>Router X (m)<input type="number" id="routerX" min="0" step=".1"></label><label>Router Y (m)<input type="number" id="routerY" min="0" step=".1"></label></div>
+          <div class="divider"></div><div class="tool-head"><h3>Plan tools</h3><select id="planMode"><option value="select">Select / inspect</option><option value="wall">Draw wall</option><option value="router">Place router</option></select></div>
+          <label>Wall material<select id="wallMaterial"><option value="drywall">Drywall</option><option value="wood">Wood</option><option value="glass">Glass</option><option value="brick">Brick</option><option value="concrete">Concrete</option><option value="metal">Metal</option></select></label>
+          <p class="help" id="toolHelp">Choose Draw wall, then click two points on the plan.</p>
+          <div class="wall-list" id="wallList"></div>
+        </div>
+        <div class="panel plan-panel"><div class="panel-head"><div><h3>2D floor plan</h3><p>Click to draw walls or reposition the router.</p></div><span class="live-pill">EDITOR</span></div><div class="canvas-wrap"><canvas id="planCanvas"></canvas></div><div class="canvas-foot"><span id="planDimensions">10 × 8 m</span><span id="wallCount">0 walls</span></div></div>
+      </div>
+      <div class="panel scene-panel"><div class="panel-head"><div><h3>3D spatial view</h3><p>Isometric geometric preview generated locally in canvas.</p></div><label class="orbit-label">Rotate <input id="orbit" type="range" min="-60" max="60" value="0"></label></div><div class="canvas-wrap scene-wrap"><canvas id="sceneCanvas"></canvas></div></div>
+    </section>
+
+    <section class="view" id="view-coverage">
+      <div class="view-intro"><div><div class="eyebrow">RF VISUALIZATION</div><h2>Wireless coverage maps</h2><p>Compare interpolated survey measurements with a theoretical indoor RF model.</p></div><div class="coverage-actions"><select id="coverageSession"><option value="">Choose survey</option></select><button class="btn secondary" id="loadMeasured">Measured map</button><button class="btn primary" id="loadPredicted">Model map</button></div></div>
+      <div class="map-legend"><span><i class="legend strong"></i> Strong ≥ -55 dBm</span><span><i class="legend medium"></i> Medium -56 to -70</span><span><i class="legend weak"></i> Weak -71 to -85</span><span><i class="legend dead"></i> Very weak below -85</span></div>
+      <div class="panel"><div class="panel-head"><div><h3 id="coverageTitle">Theoretical coverage model</h3><p id="coverageSubtitle">Select a map type to calculate a coverage surface.</p></div><span class="status-tag" id="coverageType">NOT LOADED</span></div><div class="canvas-wrap heat-wrap"><canvas id="heatCanvas"></canvas></div><div class="canvas-foot"><span id="coverageRange">No data</span><span id="coverageCount">—</span></div></div>
+      <div class="notice"><b>Interpretation</b><p>Measured map = IDW interpolation between saved survey points. Model map = free-space path loss plus per-wall material attenuation. The model does not include detailed antenna patterns, furniture, neighboring interference or calibrated material measurements.</p></div>
+    </section>
+    <footer><span> NIGHTHAWK <i>LOCAL-FIRST WI-FI INTELLIGENCE</i></span><span id="dataLocation">Data stays on this PC · SQLite</span></footer>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/static/app.js" defer></script>
+</body></html>
