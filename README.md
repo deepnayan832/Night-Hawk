@@ -40,6 +40,7 @@ The first runnable release includes a Python/FastAPI local service, a browser-ba
 | Predicted coverage | Simplified FSPL plus per-wall material attenuation model |
 | Router placement | Grid-search ranking of candidate router positions using the same simplified model |
 | Survey export | Download a session's measurements as CSV |
+| Project backup | Export/import floor-plan and RF settings as JSON |
 | Local persistence | SQLite database stored under the user's home directory |
 
 **Not in this release:** ESP32 CSI capture, human-presence sensing, automated motorized scanning, multi-floor geometry, CAD/image import, true Three.js/WebGL rendering, and detailed antenna/interference simulation. These are future milestones, not completed features.
@@ -162,6 +163,8 @@ Key source files:
 | GET | `/api/hardware/status` | Hardware capability and limitation report |
 | GET | `/api/wifi/scan` | Scan Windows-visible Wi-Fi networks |
 | GET / PUT | `/api/project` | Read or save the floor plan and router settings |
+| GET | `/api/project/export.json` | Download the project as JSON |
+| POST | `/api/project/import` | Validate and import a project JSON payload |
 | GET / POST | `/api/surveys` | List or create survey sessions |
 | GET / POST | `/api/surveys/{id}/points` | Read or save survey points |
 | GET | `/api/coverage/measured` | Generate IDW coverage from saved points |
