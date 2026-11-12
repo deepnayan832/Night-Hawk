@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import platform
 from pathlib import Path
 from typing import Any
@@ -256,3 +257,18 @@ def router_optimize(
         "method": "Coarse grid search maximizing mean predicted RSSI with a weak-area penalty",
         "notice": "The optimizer uses the same simplified RF model as the predicted map. Validate placement with a real walk survey.",
     }
+
+
+@app.get("/api/project/export.json")
+def project_export_json() -> Response:
+    payload = json.dumps(db.get_project(), indent=2)
+    return Response(
+        content=payload,
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="nighthawk-project.json"'},
+    )
+
+
+@app.post("/api/project/import")
+def project_import_json(project: ProjectModel) -> dict[str, Any]:
+    return project_put(project)
