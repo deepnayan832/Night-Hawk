@@ -90,6 +90,20 @@ async function saveProject(){
   catch(e){toast(e.message,true)}
 }
 $("saveProject").addEventListener("click",saveProject);
+$("optimizeRouter").addEventListener("click",async()=>{
+  $("optimizeRouter").disabled=true;$("optimizeRouter").textContent="Calculating…";
+  try{
+    const result=await api("/api/router/optimize?step_m=1&resolution=10");
+    const best=result.best;
+    if(!best)throw new Error("No candidate router position found");
+    $("routerX").value=best.x;$("routerY").value=best.y;
+    state.project.router.x=best.x;state.project.router.y=best.y;
+    $("optimizerResult").textContent="Suggested: "+best.x+" m, "+best.y+" m · model mean "+best.mean_rssi_dbm+" dBm · Save to apply.";
+    $("savedLabel").textContent="UNSAVED CHANGES";drawAllPlans();
+    toast("Best modelled position found. Review and save it.");
+  }catch(e){toast(e.message,true)}
+  finally{$("optimizeRouter").disabled=false;$("optimizeRouter").textContent="✦ Find better router position"}
+});
 function renderWallList(){$("wallList").innerHTML=(state.project?.walls||[]).map((w,i)=>'<div class="wall-row"><span>'+(i+1)+'. '+esc(w.material)+' · '+Math.hypot(w.x2-w.x1,w.y2-w.y1).toFixed(1)+' m</span><button data-remove-wall="'+i+'" title="Remove wall">×</button></div>').join("")||'<div class="empty">No internal walls added.</div>';$("wallCount").textContent=(state.project?.walls.length||0)+" walls"}
 $("wallList").addEventListener("click",async e=>{const b=e.target.closest("[data-remove-wall]");if(!b)return;state.project.walls.splice(Number(b.dataset.removeWall),1);renderWallList();drawAllPlans();await saveProject()});
 $("planMode").addEventListener("change",e=>{state.mode=e.target.value;state.wallStart=null;$("toolHelp").textContent=state.mode==="wall"?"Click two points on the plan to add a wall.":state.mode==="router"?"Click the plan to move the router.":"Choose Draw wall or Place router to edit the plan.";});
