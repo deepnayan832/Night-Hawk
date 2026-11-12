@@ -1,70 +1,40 @@
-<#
-.SYNOPSIS
-Project Nighthawk - Start Script (Windows x64)
-#>
+# Start NightHawk on localhost only
+$ErrorActionPreference = "Stop"
+$root = $PSScriptRoot
+$backend = Join-Path $root "nighthawk-backend"
+$python = Join-Path $root ".venv\Scripts\python.exe"
+$pidFile = Join-Path $root ".nighthawk-server.pid"
+$url = "http://127.0.0.1:8765"
 
-$baseDir = "C:\Users\nayan\project-nighthawk"
-$backendDir = Join-Path $baseDir "nighthawk-backend"
-$pythonExe = Join-Path $baseDir "venv\Scripts\python.exe"
-$pidFile = Join-Path $baseDir "nighthawk.pid"
+if (-not (Test-Path $python)) { throw "Virtual environment not found. Run .\setup.ps1 first." }
+if (-not (Test-Path (Join-Path $backend "main.py"))) { throw "Backend source not found." }
 
-Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "   LAUNCHING PROJECT NIGHTHAWK (3D WI-FI HOME INTEL)     " -ForegroundColor Cyan
-Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host ""
-
-# Check if port 8765 is already responding
-$alreadyActive = $false
 try {
-    $req = Invoke-WebRequest -Uri "http://127.0.0.1:8765/api/hardware/status" -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
-    if ($req -and $req.StatusCode -eq 200) {
-        $alreadyActive = $true
+    $health = Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 2
+    if ($health.ok) {
+        Write-Host "NightHawk is already running at $url" -ForegroundColor Green
+        Start-Process $url
+        exit 0
     }
 } catch {}
 
-if ($alreadyActive) {
-    Write-Host "[+] Project Nighthawk is already active and listening on port 8765." -ForegroundColor Green
-    Write-Host "[+] Opening WebGL Application in default browser..." -ForegroundColor Cyan
-    Start-Process "http://127.0.0.1:8765"
-    exit 0
+Write-Host "Starting NightHawk at $url ..." -ForegroundColor Cyan
+$proc = Start-Process -FilePath $python -ArgumentList @(
+    "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8765"
+) -WorkingDirectory $backend -PassThru -WindowStyle Hidden
+$proc.Id | Set-Content -Path $pidFile -Encoding ascii
+
+$ready = $false
+for ($i = 0; $i -lt 30; $i++) {
+    Start-Sleep -Milliseconds 500
+    try {
+        $health = Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 2
+        if ($health.ok) { $ready = $true; break }
+    } catch {}
 }
-
-Write-Host "Starting Nighthawk Python Server on http://127.0.0.1:8765 ..." -ForegroundColor Yellow
-
-$proc = Start-Process -FilePath $pythonExe `
-    -ArgumentList "-m uvicorn main:app --host 127.0.0.1 --port 8765 --app-dir `"$backendDir`"" `
-    -WorkingDirectory $backendDir `
-    -PassThru -WindowStyle Hidden
-
-if ($proc) {
-    $proc.Id | Out-File -FilePath $pidFile -Encoding ascii
-    Write-Host "[+] Server process launched (PID: $($proc.Id))." -ForegroundColor Green
-
-    # Wait up to 5 seconds for port to open
-    $ready = $false
-    for ($i = 0; $i -lt 10; $i++) {
-        Start-Sleep -Milliseconds 500
-        try {
-            $testReq = Invoke-WebRequest -Uri "http://127.0.0.1:8765/api/hardware/status" -UseBasicParsing -TimeoutSec 1 -ErrorAction SilentlyContinue
-            if ($testReq -and $testReq.StatusCode -eq 200) {
-                $ready = $true
-                break
-            }
-        } catch {}
-    }
-
-    if ($ready) {
-        Write-Host "[+] Server is live at http://127.0.0.1:8765!" -ForegroundColor Green
-        Write-Host "[+] Opening default browser..." -ForegroundColor Cyan
-        Start-Process "http://127.0.0.1:8765"
-    } else {
-        Write-Host "[!] Server started, opening browser..." -ForegroundColor Yellow
-        Start-Process "http://127.0.0.1:8765"
-    }
-
-    Write-Host ""
-    Write-Host "Application is active at: http://127.0.0.1:8765" -ForegroundColor Cyan
-    Write-Host "To stop the application, run: .\stop.ps1" -ForegroundColor Gray
-} else {
-    Write-Host "[-] Failed to start process." -ForegroundColor Red
+if (-not $ready) {
+    throw "NightHawk did not become ready. Check whether port 8765 is occupied and inspect the process."
 }
+Write-Host "NightHawk is ready. Opening browser..." -ForegroundColor Green
+Start-Process $url
+Write-Host "Stop the server with .\stop.ps1" -ForegroundColor Gray
