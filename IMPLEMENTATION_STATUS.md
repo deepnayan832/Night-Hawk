@@ -67,7 +67,7 @@ These steps still need to be run on a real Windows 10/11 machine:
 - Validate against multiple Windows Wi-Fi adapters and locales.
 - Improve Wi-Fi parsing for localized Windows command output.
 - Add floor-plan image import and calibration.
-- Add JSON project export/import and session management controls.
+- Add survey session management controls and floor-plan image import.
 - Add model calibration from survey measurements and error metrics.
 - Improve 3D rendering and multi-floor geometry.
 
