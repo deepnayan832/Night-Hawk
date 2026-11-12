@@ -1,0 +1,305 @@
+{
+  "wifi-heatmapper": {
+    "package_json": "{\n  \"name\": \"wifi-heatmapper\",\n  \"version\": \"0.10.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"engines\": {\n    \"node\": \">=22.12\"\n  },\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"start\": \"next start\",\n    \"typecheck\": \"tsc --noEmit\",\n    \"test\": \"vitest run\",\n    \"lint\": \"oxlint --fix src __tests__ e2e playwright.config.ts && prettier --write src __tests__ e2e playwright.config.ts\",\n    \"check\": \"oxlint src __tests__ e2e playwright.config.ts && prettier --check src __tests__ e2e playwright.config.ts\",\n    \"dev:mock\": \"cross-env WIFI_HEATMAPPER_MOCK=1 next dev\",\n    \"test:watch\": \"vitest\",\n    \"e2e\": \"playwright test\",\n    \"e2e:ui\": \"playwright test --ui\",\n    \"e2e:serve:dev\": \"cross-env WIFI_HEATMAPPER_MOCK=1 WIFI_HEATMAPPER_E2E=1 WIFI_HEATMAPPER_DATA_DIR=.e2e-data NEXT_DIST_DIR=.next-e2e next dev -p 3100\",\n    \"e2e:serve:prod\": \"cross-env WIFI_HEATMAPPER_MOCK=1 WIFI_HEATMAPPER_E2E=1 WIFI_HEATMAPPER_DATA_DIR=.e2e-data NEXT_DIST_DIR=.next-e2e next start -p 3100\",\n    \"verify\": \"npm run check && npm run typecheck && npm run test\",\n    \"e2e:build\": \"cross-env NEXT_DIST_DIR=.next-e2e next build\",\n    \"desktop:install\": \"npm --prefix desktop ci --no-audit --no-fund\",\n    \"desktop:server\": \"node desktop/build-server.mjs\",\n    \"desktop:smoke\": \"node desktop/smoke-test.mjs\",\n    \"desktop:dev\": \"npm run desktop:install && npm --prefix desktop run dev\",\n    \"desktop:dev:mock\": \"cross-env WIFI_HEATMAPPER_MOCK=1 npm run desktop:dev\",\n    \"desktop:build\": \"npm run desktop:install && npm --prefix desktop run build\",\n    \"build:macos-helper\": \"node native/macos-wifi-helper/build.mjs\",\n    \"mcp:build\": \"node scripts/build-mcp.mjs\",\n    \"mcp\": \"node scripts/build-mcp.mjs && node dist/mcp/wifi-heatmapper-mcp.mjs\"\n  },\n  \"dependencies\": {\n    \"@radix-ui/react-accordion\": \"^1.3.1\",\n    \"@radix-ui/react-alert-dialog\": \"^1.2.1\",\n    \"@radix-ui/react-checkbox\": \"^1.4.1\",\n    \"@radix-ui/react-dialog\": \"^1.3.1\",\n    \"@radix-ui/react-dropdown-menu\": \"^2.2.1\",\n    \"@",
+    "desktop": [
+      "app-icon.svg",
+      "build-server.mjs",
+      "launcher",
+      "package-lock.json",
+      "package.json",
+      "server-entry.mjs",
+      "smoke-test-app.mjs",
+      "smoke-test-linux.sh",
+      "smoke-test-windows-install.mjs",
+      "smoke-test.mjs",
+      "src-tauri"
+    ],
+    "src_files": [
+      "src\\instrumentation.ts",
+      "src\\proxy.ts",
+      "src\\app\\globals.css",
+      "src\\app\\layout.tsx",
+      "src\\app\\page.tsx",
+      "src\\app\\api\\diagnostics\\route.ts",
+      "src\\app\\api\\e2e\\data\\route.ts",
+      "src\\app\\api\\e2e\\scenario\\route.ts",
+      "src\\app\\api\\events\\route.ts",
+      "src\\app\\api\\macos-helper\\route.ts",
+      "src\\app\\api\\media\\route.ts",
+      "src\\app\\api\\media\\[name]\\route.ts",
+      "src\\app\\api\\settings\\route.ts",
+      "src\\app\\api\\settings\\copy\\route.ts",
+      "src\\app\\api\\speed-test\\route.ts",
+      "src\\app\\api\\start-task\\route.ts",
+      "src\\app\\api\\status\\route.ts",
+      "src\\app\\api\\sudo-password\\route.ts",
+      "src\\app\\api\\surveys\\[name]\\points\\route.ts",
+      "src\\app\\api\\surveys\\[name]\\points\\[id]\\route.ts",
+      "src\\app\\api\\telemetry\\route.ts",
+      "src\\app\\webGL\\renderers\\mainRenderer.ts",
+      "src\\app\\webGL\\renderers\\helpers\\drawFullScreenTexture.ts",
+      "src\\app\\webGL\\renderers\\layers\\heatmapLayerRenderer.ts",
+      "src\\app\\webGL\\renderers\\layers\\imageLayerRenderer.ts",
+      "src\\app\\webGL\\renderers\\textures\\createGradientLUTTexture.ts",
+      "src\\app\\webGL\\shaders\\fullscreenQuadVertexShader.ts",
+      "src\\app\\webGL\\shaders\\fullscreenTextureFragmentShader.ts",
+      "src\\app\\webGL\\shaders\\heatmapFragmentShader.ts",
+      "src\\app\\webGL\\utils\\webGLDefaults.ts"
+    ],
+    "license": "MIT License\n\nCopyright (c) 2024 Daniel Hnyk\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to "
+  },
+  "open-heat": {
+    "files": [
+      ".git",
+      "README.md",
+      "webui",
+      "webui_server.py",
+      "wifi_heatmap.py",
+      "__pycache__"
+    ],
+    "readme": "# WiFi Heatmap Survey\n\nA small Windows desktop tool for walking around a space and mapping live WiFi signal strength.\n\n## Run\n\n```powershell\npython .\\wifi_heatmap.py\n```\n\nNo third-party packages are required. The app uses Python's built-in Tkinter UI and reads WiFi signal quality from:\n\n```powershell\nnetsh wlan show interfaces\n```\n\n## Web UI Preview\n\nThere is also a local browser UI alternative:\n\n```powershell\npython .\\webui_server.py\n```\n\nThen open:\n\n```text\nhttp://127.0.0.1:8765\n```\n\nThe web UI keeps the existing no-dependency Python backend for live WiFi readings, but uses a browser\ncanvas for the map, heatmap, floor plan loading, CSV export, and session save/load. It is currently a\nclean preview UI, not a full replacement for every Tkinter feature.\n\n## How to Use\n\n1. Connect your laptop to the WiFi network you want to measure.\n2. Start the app.\n3. Walk to a physical location.\n4. Click the matching spot on the map to record the current signal.\n5. Keep walking and clicking to build t",
+    "code_files": [
+      "webui_server.py",
+      "wifi_heatmap.py"
+    ],
+    "license": null
+  },
+  "Wi-Fi_HeatMap": {
+    "files": [
+      ".git",
+      ".gitignore",
+      "LICENSE",
+      "Photos",
+      "README.md",
+      "requirements.txt",
+      "Wi-Fi-heatmap.py"
+    ],
+    "readme": "# Wi-Fi Heatmap <!-- omit in toc -->\n\nA cross-platform Python GUI application that allows you to map Wi-Fi signal strength over a floor plan or map image. By taking signal measurements at various points in a physical space, the tool generates an interpolated, physics-based heatmap to visualize your exact network coverage.\n\n**Example**:\n\n![HeatMap](Photos/Heatmap_WiFi2.png)\n\n## NOTES <!-- omit in toc -->\n\n- Not tested on MAC\n- Not tested with 6GHz Wi-Fi\n\n## Table of content <!-- omit in toc -->\n\n- [Installation](#installation)\n- [OS-Specific Requirements](#os-specific-requirements)\n- [How to Use](#how-to-use)\n  - [Windows CMD](#windows-cmd)\n  - [Windows PowerShell](#windows-powershell)\n  - [Linux](#linux)\n  - [Step-by-Step Guide](#step-by-step-guide)\n- [How it Works](#how-it-works)\n  - [Architecture Overview](#architecture-overview)\n  - [Application Lifecycle](#application-lifecycle)\n    - [1. Interface Detection (`load_interfaces`)](#1-interface-detection-load_interfaces)\n    - [2. Map",
+    "code_files": [
+      "requirements.txt",
+      "Wi-Fi-heatmap.py"
+    ],
+    "license": "                    GNU GENERAL PUBLIC LICENSE\n                       Version 3, 29 June 2007\n\n Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>\n Everyone is permitted to copy and distribute verbatim copies\n of this license document, but changing it is not allowed.\n\n                            Preamble\n\n  The GNU General Public License is a free, copyleft license for\nsoftware a"
+  },
+  "wifi-heatmap": {
+    "files": [
+      ".git",
+      ".github",
+      ".gitignore",
+      "agent.py",
+      "app.py",
+      "CLAUDE.md",
+      "CODE_OF_CONDUCT.md",
+      "CONTRIBUTING.md",
+      "data",
+      "export.py",
+      "heatmap.py",
+      "insights.py",
+      "LICENSE",
+      "README.md",
+      "requirements.txt",
+      "routes",
+      "run.sh",
+      "scanner.py",
+      "SECURITY.md",
+      "static",
+      "storage.py",
+      "templates",
+      "tests"
+    ],
+    "app_py": "\"\"\"\nFlask app setup \u2014 thin orchestrator.\n\nAll route logic lives in routes/*.py blueprints.\nState is held in AppState, stored on app.config[\"APP_STATE\"].\n\"\"\"\nfrom __future__ import annotations\n\nimport os\nimport time\nfrom dataclasses import dataclass, field\nfrom typing import Optional\n\nfrom flask import Flask, jsonify, render_template\n\nfrom scanner import Scanner\nfrom storage import SurveyStorage, Survey\nfrom heatmap import RSSI_MIN, RSSI_MAX, SNR_MIN, SNR_MAX\n\n\n# \u2500\u2500 App State \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n@dataclass\nclass AppState:\n    \"\"\"Holds all mutable server state. No more globals.\"\"\"\n    survey_path: str\n    floorplan_path: str\n    snapshots_dir: str\n    storage: SurveyStorage\n    survey: Survey\n    scanner: Optional[Scanner] = None\n\n\n# \u2500\u2500 Factory \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\nDATA_DIR = \"data\"\nos.makedirs(DATA_DIR, exist_ok=True)\n\nSURVEY_PATH = os.path.join(DATA_DIR, \"survey.json\")\nFLOORPLAN_PATH = os.path.join(DATA_DIR, \"floorpla",
+    "scanner_py": "\"\"\"\nWiFi scanner for macOS.\n\nWraps `sudo wdutil info` and parses the WIFI section to extract\nthe currently connected network's signal data.\n\nWhy wdutil?\n- The classic `airport` binary was removed in macOS 14.4+\n- `system_profiler SPAirPortDataType` redacts BSSIDs on modern macOS\n- `ioreg` returns all-zero BSSIDs (Apple privacy lockdown)\n- `wdutil info` is the only reliable way to get full data, but needs sudo\n\nUsage:\n    scanner = WifiScanner(sudo_password=\"...\")\n    sample = scanner.scan()\n    # -> {'ssid': 'Home', 'bssid': 'aa:bb:...', 'rssi': -45, ...}\n\"\"\"\nfrom __future__ import annotations\n\nimport re\nimport subprocess\nimport time\nimport urllib.request\nfrom dataclasses import dataclass, asdict\nfrom typing import Optional, Protocol, runtime_checkable\n\n\n# Fields we care about from the WIFI section of `wdutil info`.\n# Mapping wdutil-key -> our internal name. We coerce types in parse_wifi_block.\nWIFI_FIELDS = {\n    \"SSID\": \"ssid\",\n    \"BSSID\": \"bssid\",\n    \"RSSI\": \"rssi\",            # i",
+    "heatmap_py": "\"\"\"\nHeatmap rendering \u2014 numpy-only (no scipy dependency).\n\nGiven a list of (x, y, rssi) measurements and a floor plan size,\ngenerate a PNG of the interpolated signal strength.\n\nApproach:\n  - Build a regular grid over the floor plan dimensions\n  - Interpolate RSSI at each grid point using IDW\n    (Inverse Distance Weighted) - power=2, vectorized in numpy\n  - Render with matplotlib using the RdYlGn colormap\n  - Output as a transparent PNG that the browser overlays on the floor plan\n\nWe fix vmin/vmax to dBm thresholds that make sense for WiFi:\n  -30 dBm = excellent (right next to AP)\n  -85 dBm = barely usable\n\"\"\"\nfrom __future__ import annotations\n\nimport io\nfrom typing import List, Tuple\n\nimport numpy as np\nimport matplotlib\n\n# Headless backend - no display needed\nmatplotlib.use(\"Agg\")\nimport matplotlib.pyplot as plt\n\n\n# RSSI range for the colormap. Keep these stable so colors are comparable\n# across runs. -30 = excellent, -85 = usable floor.\nRSSI_MIN = -85\nRSSI_MAX = -30\n\nSNR_MIN = 5\nSN",
+    "license": "MIT License\n\nCopyright (c) 2026 Rafael Ribaldo\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons "
+  },
+  "SignalPlan": {
+    "package_json": "{\n  \"name\": \"signalplan\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"packageManager\": \"pnpm@12.6.0\",\n  \"engines\": {\n    \"node\": \">=24\"\n  },\n  \"scripts\": {\n    \"dev\": \"pnpm --filter @signalplan/web dev\",\n    \"build\": \"pnpm -r build\",\n    \"typecheck\": \"pnpm -r typecheck\",\n    \"lint\": \"oxlint --deny-warnings\",\n    \"format\": \"prettier --write .\",\n    \"format:check\": \"prettier --check .\",\n    \"test\": \"pnpm -r test\",\n    \"speed\": \"pnpm --filter @signalplan/engine speed\",\n    \"check\": \"pnpm typecheck && pnpm lint && pnpm format:check && pnpm test\",\n    \"prepare\": \"lefthook install\"\n  },\n  \"devDependencies\": {\n    \"@commitlint/cli\": \"^21.2.3\",\n    \"@commitlint/config-conventional\": \"^21.2.3\",\n    \"lefthook\": \"^2.1.14\",\n    \"oxlint\": \"^1.85.0\",\n    \"prettier\": \"^3.9.9\",\n    \"typescript\": \"~6.0.3\",\n    \"vitest\": \"^5.0.2\"\n  }\n}\n",
+    "packages": [
+      "engine",
+      "floorplan"
+    ],
+    "apps": [
+      "web"
+    ],
+    "license": "MIT License\n\nCopyright (c) 2026 Nathan\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom "
+  },
+  "3D_wifi_scanner": {
+    "files": [
+      ".git",
+      ".github",
+      "docu",
+      "node_mcu_code",
+      "README.md",
+      "wifi_mapper"
+    ],
+    "wifi_mapper_files": [
+      ".DS_Store",
+      ".idea",
+      "drive_2D_grid.py",
+      "drive_3D_grid.py",
+      "plot.py",
+      "plot_4d.py",
+      "stack_data"
+    ],
+    "node_mcu": [
+      "node_mcu_code.ino"
+    ],
+    "readme": "# 3D_wifi_scanner\nThis project is a 3D scanner for WiFi signals.\n\nI built this thing to visualize how WiFi moves through space. To do so I used an old 3D printer frame and an ESP32 NodeMCU. The ESP32 probe was moved in a grid pattern and every 1 cm an RSSI (signal strength) measurement was captured.\n\nThe ESP32 was connected to the old print head and hosted an API with the RSSI measurements. The two axis have been controlled by an Ethersweep controller each and a python script collected and visualized the captured data.\n\nWhat I found interesting was the distance between the light and the dark spots in the plot. They were around 12.5 cm which is the wavelength of 2.4GHz WiFi. Also, I didn't think that such low spec test equipment was able to create a detailed map of how WiFi spreads through space.\n\n\n\n## 3D visualization of the intensity changes in a WiFi signal:\n![PCB Photo](/docu/animation.gif)\n## One slice of the scan:\n![PCB raw B](/docu/wifi_map.jpeg)\n## The scanner:\n![PCB raw B](/doc"
+  },
+  "ethersweep": {
+    "files": [
+      ".git",
+      ".github",
+      ".gitignore",
+      "3d_files",
+      "code",
+      "electronic_design",
+      "getting_started",
+      "img",
+      "license.txt",
+      "README.md"
+    ],
+    "readme": "![Ethersweep Logo](/img/logo.png)\n\n# Ethersweep\n### An Open Source Ethernet controllable stepper motor. Easy interfacing with JSON and UDP from any device on the network in any language you choose.\n\nWant to stay updated or participate? Join my [Discord](https://discord.com/invite/rerCyqAcrw)!\n\n*As there is quite some interest in buying a controller, please fill out this form to help me better understand what Ethersweep would be used for https://forms.gle/FLgfvCP1hjCCp2636*\n\nMore media/press material:\nhttps://drive.google.com/drive/folders/1qrk8QeEkzJ8hkr-H0x3y7xxhLTKhMb_F?usp=share_link\n\n    \n\n> *NEWS NOTE:*  Ethersweep is a project still in development. If you plan to order boards for yourself, you can, but expect it to take some work to get everything running! If you have any questions, please write me on Discord: https://discord.com/invite/rerCyqAcrw or\nLinkedIn: https://www.linkedin.com/in/neumi/\nIf you need a custom assembly code or have a special use case in mind, contact me.\nThe",
+    "license": null
+  },
+  "wifi-3d-fusion": {
+    "files": [
+      ".git",
+      ".gitignore",
+      "advanced_room_analysis.json",
+      "advanced_room_detector.py",
+      "CODE_OF_CONDUCT.md",
+      "configs",
+      "connected_devices.json",
+      "connected_device_scanner.py",
+      "CONTRIBUTING.md",
+      "css",
+      "docker",
+      "docker-compose.yml",
+      "docs",
+      "enhanced_room_analysis.json",
+      "enhanced_room_detector.py",
+      "generate_realistic_house_data.py",
+      "hybrid_csi_person_detector.py",
+      "index.html",
+      "index_backup.html",
+      "js",
+      "LICENSE",
+      "live_person_generator.py",
+      "live_wifi_mapper.py",
+      "Makefile",
+      "network_house_layout.png",
+      "network_layout_renderer.py",
+      "person_control.py",
+      "person_identifier.py",
+      "person_learning_tool.py",
+      "person_tracker.py",
+      "PROJECT_STATUS.md",
+      "pure_csi_person_detector.py",
+      "QUICK_COMMANDS.md",
+      "README.md",
+      "real_csi_extractor.py",
+      "real_wifi_csi_extractor.py",
+      "requirements.txt",
+      "requirements_macos.txt",
+      "room_approval.html",
+      "room_approval_server.py",
+      "run_js_visualizer.py.backup",
+      "run_realtime_hop.py",
+      "run_skeleton_demo.py",
+      "run_wifi3d.sh",
+      "run_wifi3d_js.sh",
+      "scripts",
+      "SECURITY.md",
+      "src",
+      "tools",
+      "train_model.py",
+      "train_wifi3d.sh",
+      "wifi_house_mapper.py"
+    ],
+    "readme": "\n\n\n\n<p align=\"center\">\n  <img src=\"docs/img/wifi-3d-fusion.png\" width=\"950\" alt=\"WiFi-3D-Fusion \u2014 Real-Time 3D Motion Sensing with WiFi\"/>\n</p>\n\n# WiFi-3D-Fusion\n\n<p align=\"center\">\n  <!-- Core Project Badges -->\n  <img src=\"https://img.shields.io/badge/Project-WiFi_3D_Fusion-blue?style=flat&logo=github\" alt=\"Project\"/>\n  <img src=\"https://img.shields.io/badge/DISCLAIMER-Research_Only\u26a0\ufe0f-critical?style=flat&logo=exclamation&logoColor=white\" alt=\"Disclaimer\"/>\n  <a href=\"https://deepwiki.org/MaliosDark/wifi-3d-fusion/\" target=\"_blank\" rel=\"noopener noreferrer\">\n    <img src=\"https://img.shields.io/badge/CLICK_FOR_EXTENDED_README_>>>>>>_DeepWiki_<<<<<-0A7EEE?style=flat&logo=readthedocs&logoColor=white\" alt=\"DeepWiki Documentation\"/>\n  </a>\n  <a href=\"https://github.com/MaliosDark/wifi-3d-fusion/blob/main/LICENSE\">\n    <img src=\"https://img.shields.io/badge/License-GPL--2.0-informational?style=flat\" alt=\"GPL-2.0 License\"/>\n  </a>\n</p>\n\n<p align=\"center\">\n  <!-- GitHub Stats -->\n  <a href=\"",
+    "license": "# License - Apache License 2.0\n\nCopyright (c) 2025 MaliosDark\n\nLicensed under the Apache License, Version 2.0 (the \"License\");  \nyou may not use this file except in compliance with the License.  \nYou may obtain a copy of the License at\n\n   http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software  \ndistributed under the License is distributed o"
+  },
+  "WiFi-CSI-Human-Detection": {
+    "files": [
+      ".git",
+      "docs",
+      "README.md",
+      "stage1_passive"
+    ],
+    "readme": "# WiFi CSI-Based Human Presence Detection System\n### Privacy-Preserving Room Monitoring using ESP32 and WiFi Channel State Information\n\n![Stage](https://img.shields.io/badge/Stage-1%20Complete-brightgreen)\n![Platform](https://img.shields.io/badge/Platform-ESP32-blue)\n![Framework](https://img.shields.io/badge/Framework-ESP--IDF%20v4.4.8-orange)\n![Python](https://img.shields.io/badge/Python-3.13-yellow)\n![License](https://img.shields.io/badge/License-MIT-lightgrey)\n\n---\n\n## Project Vision\n\nA **camera-free, privacy-preserving human presence detection system** that uses WiFi Channel State Information (CSI) to detect and monitor human presence, movement, and activity in a room \u2014 without any camera, microphone, or intrusive sensor.\n\n> **Real-world application:** Patient room monitoring in hospitals/homes \u2014 detect if a patient is present, moving, or needs attention \u2014 while fully preserving their privacy.\n\n---\n\n## How It Works\n\nThe human body (~70% water) absorbs and reflects 2.4 GHz WiFi sign",
+    "license": null
+  },
+  "csi-gui-rs": {
+    "cargo_toml": "[package]\nname = \"csi-gui-rs\"\nversion = \"2.0.0\"\nedition = \"2024\"\nrust-version = \"1.92\"\ndescription = \"Desktop GUI for live Wi-Fi CSI capture from one or many ESP32 boards running esp-csi-cli-rs\"\nlicense = \"MIT OR Apache-2.0\"\nrepository = \"https://github.com/csi-rs/csi-gui-rs\"\ndocumentation = \"https://docs.rs/csi-gui-rs\"\nreadme = \"README.md\"\nkeywords = [\"csi\", \"esp32\", \"wifi-sensing\", \"egui\", \"802-11bf\"]\ncategories = [\"visualization\", \"embedded\", \"hardware-support\"]\n# README screenshots live in `images/` (repo root) so the GitHub\n# front-page renders them, but they shouldn't bloat the crate tarball\n# published to crates.io. `assets/fonts/` stays \u2014 Adwaita Sans is\n# baked into the binary via include_bytes!. `exports/` is the runtime\n# capture dir and is in .gitignore but Cargo would otherwise package\n# it if it ever ended up tracked.\nexclude = [\n    \"images/**\",\n    \"exports/**\",\n    \".github/**\",\n    \"Cross.toml\",\n]\n\n[features]\ndefault = []\nrerun = [\"dep:rerun\"]\n\n[package.metadata.docs.",
+    "files": [
+      ".git",
+      ".github",
+      ".gitignore",
+      "assets",
+      "Cargo.lock",
+      "Cargo.toml",
+      "CHANGELOG.md",
+      "Cross.toml",
+      "deny.toml",
+      "examples",
+      "images",
+      "LICENSE-APACHE",
+      "LICENSE-MIT",
+      "README.md",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "license": null
+  },
+  "esp-csi-cli-rs": {
+    "cargo_toml": "[package]\nname = \"esp-csi-cli-rs\"\nversion = \"0.10.1\"\nedition = \"2024\"\n# This crate is firmware, not a library or a host application: the build product\n# is an image flashed to an ESP32, so there is nothing for a crates.io consumer\n# to depend on. It ships as source plus a git tag. The library it drives,\n# `esp-csi-rs`, is the published artifact.\npublish = false\n\n[features]\ndefault = [\"no-std\", \"println\", \"auto\", \"statistics\"]\n## Build without the standard library.\nno-std = []\n## Enable logging via `println!()`.\nprintln = [\"esp-csi-rs/println\", \"esp-backtrace/println\"]\n## Automatically select the best available backend for the target.\nauto = [\"esp-csi-rs/auto\"]\n## Non-blocking async logging: packet serialization/output is delegated to an\n## async driver so heavy I/O never blocks the executor. Keeping logging\n## non-blocking is critical for collection throughput \u2014 it prevents dropped CSI\n## packets under load. Enabled automatically by `jtag-serial` (see below). When\n## set on its own it ",
+    "files": [
+      ".cargo",
+      ".dockerignore",
+      ".git",
+      ".github",
+      ".gitignore",
+      ".vscode",
+      "assets",
+      "build.rs",
+      "Cargo.lock",
+      "Cargo.toml",
+      "docs",
+      "LICENSE",
+      "README.md",
+      "RELEASE_NOTES.md",
+      "rust-toolchain.toml",
+      "scripts",
+      "specs",
+      "src"
+    ],
+    "license": "                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"License\" shall mean the terms and conditions for use, reproduction,\n      and distribution as defined by Sections 1 through 9 of this document.\n\n     "
+  },
+  "ESP32-CSI-Tool": {
+    "files": [
+      ".git",
+      ".github",
+      ".gitignore",
+      "active_ap",
+      "active_sta",
+      "docs",
+      "LICENSE",
+      "passive",
+      "python_utils",
+      "README.md",
+      "_components"
+    ],
+    "python_utils": [
+      "example_csi.csv",
+      "parse_csi.py",
+      "read_stdin.py",
+      "serial_append_time.py",
+      "serial_measure_rate.py",
+      "serial_plot_csi_live.py",
+      "wait_timer.py"
+    ],
+    "license": "MIT License\n\nCopyright (c) 2020 Steven M. Hernandez\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit per"
+  }
+}
