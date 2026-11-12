@@ -98,6 +98,18 @@ async function saveProject(){
   catch(e){toast(e.message,true)}
 }
 $("saveProject").addEventListener("click",saveProject);
+$("exportProject").addEventListener("click",()=>{window.location.href="/api/project/export.json"});
+$("importProject").addEventListener("click",()=>$("projectFile").click());
+$("projectFile").addEventListener("change",async e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  try{
+    const imported=JSON.parse(await file.text());
+    const saved=await api("/api/project/import",{method:"POST",body:JSON.stringify(imported)});
+    state.project=saved;fillProjectForm();drawAllPlans();refreshStats();
+    toast("Project imported and saved locally");
+  }catch(err){toast("Project import failed: "+err.message,true)}
+  finally{e.target.value=""}
+});
 $("optimizeRouter").addEventListener("click",async()=>{
   $("optimizeRouter").disabled=true;$("optimizeRouter").textContent="Calculating…";
   try{
