@@ -81,6 +81,8 @@ The 3D panel is a canvas-based isometric geometric preview. It is not a WebGL/Th
 | GET | `/api/hardware/status` | Supported and unavailable hardware modes |
 | GET | `/api/wifi/scan` | Scan Windows-visible WLAN networks |
 | GET / PUT | `/api/project` | Load/save the floor plan and RF assumptions |
+| GET | `/api/project/export.json` | Download project JSON backup |
+| POST | `/api/project/import` | Validate and import project JSON |
 | GET / POST | `/api/surveys` | List/create survey sessions |
 | GET / POST | `/api/surveys/{id}/points` | List/save survey points |
 | GET | `/api/coverage/measured` | IDW grid from saved points |
