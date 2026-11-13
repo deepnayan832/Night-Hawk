@@ -342,6 +342,15 @@ $("importVolumetric").addEventListener("click",async()=>{
   finally{button.disabled=false;button.textContent="Import point cloud"}
 });
 $("reloadVolumetric").addEventListener("click",()=>loadVolumetric().then(()=>toast("Saved point cloud loaded")).catch(e=>toast(e.message,true)));
+$("downloadScanPlan").addEventListener("click",()=>{
+  const params=new URLSearchParams({
+    width_m:$("scanWidth").value,
+    depth_m:$("scanDepth").value,
+    height_m:$("scanHeight").value,
+    step_m:$("scanStep").value
+  });
+  window.location.href="/api/volumetric/scan-plan.csv?"+params.toString();
+});
 
 async function loadSessionDropdowns(){
   state.sessions=await api("/api/surveys");fillSessions();refreshStats();
