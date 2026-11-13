@@ -3,11 +3,13 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $backend = Join-Path $root "nighthawk-backend"
 $python = Join-Path $root ".venv\Scripts\python.exe"
+$sceneBundle = Join-Path $backend "static\three-scene.js"
 $pidFile = Join-Path $root ".nighthawk-server.pid"
 $url = "http://127.0.0.1:8765"
 
 if (-not (Test-Path $python)) { throw "Virtual environment not found. Run .\setup.ps1 first." }
 if (-not (Test-Path (Join-Path $backend "main.py"))) { throw "Backend source not found." }
+if (-not (Test-Path $sceneBundle)) { throw "Three.js bundle missing. Run .\setup.ps1 to build the 3D renderer." }
 
 try {
     $health = Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 2
