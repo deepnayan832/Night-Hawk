@@ -17,6 +17,7 @@ import db
 from rf import make_grid, idw_value, predict_rssi_dbm, predict_rssi_3d_dbm
 from wifi import scan_wifi
 from csi import collector as csi_collector
+from volumetric import parse_volumetric_csv, safe_source_name
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -366,37 +367,13 @@ async def volumetric_import(request: Request, filename: str = Query(default="upl
     if len(raw) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="CSV is larger than the 10 MB limit.")
     try:
-        text = raw.decode("utf-8-sig")
+        content = raw.decode("utf-8-sig")
+        points = parse_volumetric_csv(content)
     except UnicodeDecodeError as exc:
         raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded.") from exc
-    reader = csv.DictReader(io.StringIO(text))
-    headers = {str(name).strip().lower(): name for name in (reader.fieldnames or [])}
-    required = {"x", "y", "z"}
-    if not required.issubset(headers) or not ({"rssi_dbm", "rssi"} & set(headers)):
-        raise HTTPException(status_code=400, detail="CSV needs x,y,z and rssi_dbm (or rssi) columns.")
-    rssi_column = headers.get("rssi_dbm") or headers["rssi"]
-    points: list[dict[str, float]] = []
-    for line_no, row in enumerate(reader, start=2):
-        if not row or not any((value or "").strip() for value in row.values()):
-            continue
-        try:
-            point = {
-                "x": float(row[headers["x"]]),
-                "y": float(row[headers["y"]]),
-                "z": float(row[headers["z"]]),
-                "rssi_dbm": float(row[rssi_column]),
-            }
-        except (TypeError, ValueError, KeyError) as exc:
-            raise HTTPException(status_code=400, detail=f"Invalid numeric value on CSV line {line_no}.") from exc
-        if any(abs(point[key]) > 10000 for key in ("x", "y", "z")) or not -120 <= point["rssi_dbm"] <= -10:
-            raise HTTPException(status_code=400, detail=f"Out-of-range value on CSV line {line_no}.")
-        points.append(point)
-        if len(points) > 100000:
-            raise HTTPException(status_code=413, detail="CSV contains more than 100,000 points.")
-    if not points:
-        raise HTTPException(status_code=400, detail="CSV contains no valid data rows.")
-    safe_name = Path(filename).name[:160] or "uploaded.csv"
-    saved = db.replace_volumetric_points(safe_name, points)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    saved = db.replace_volumetric_points(safe_source_name(filename), points)
     return {**saved, "preview": points[:10], "bounds": {
         key: [min(point[key] for point in points), max(point[key] for point in points)]
         for key in ("x", "y", "z", "rssi_dbm")
