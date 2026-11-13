@@ -25,7 +25,7 @@ STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(
     title="NightHawk Local API",
-    version="1.0.0",
+    version="1.1.0",
     description="Local-first Wi-Fi survey, floor-plan and RF analysis service.",
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
