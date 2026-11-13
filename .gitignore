@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cov]
+*.pyc
+.pytest_cache/
+.coverage
+venv/
+env/
+.venv/
+
+# Data (created at runtime)
+data/
+*.db
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Notebooks
+*.ipynb
+
+# VS Code
+.vscode/
+
+# Caching
+.rgcache/
+.cache/
+
+# Project Nighthawk specific
+nighthawk.db
