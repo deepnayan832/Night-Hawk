@@ -8,14 +8,15 @@ import platform
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import db
-from rf import make_grid, idw_value, predict_rssi_dbm
+from rf import make_grid, idw_value, predict_rssi_dbm, predict_rssi_3d_dbm
 from wifi import scan_wifi
+from csi import collector as csi_collector
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -42,6 +43,17 @@ class WallModel(BaseModel):
     material: str = "drywall"
 
 
+class FloorModel(BaseModel):
+    id: str = Field(min_length=1, max_length=40)
+    name: str = Field(default="Floor", min_length=1, max_length=80)
+    elevation_m: float = Field(default=0, ge=-50, le=500)
+    width_m: float = Field(default=10, gt=1, le=100)
+    height_m: float = Field(default=8, gt=1, le=100)
+    wall_height_m: float = Field(default=2.7, gt=1, le=10)
+    floor_loss_db: float = Field(default=18, ge=0, le=60)
+    walls: list[WallModel] = Field(default_factory=list)
+
+
 class ProjectModel(BaseModel):
     name: str = Field(default="My Home", min_length=1, max_length=80)
     width_m: float = Field(default=10, gt=1, le=100)
@@ -50,6 +62,8 @@ class ProjectModel(BaseModel):
     frequency_mhz: int = Field(default=5000)
     tx_power_dbm: float = Field(default=18, ge=0, le=30)
     router: RouterModel
+    router_floor_id: str = Field(default="floor_1", max_length=40)
+    floors: list[FloorModel] = Field(default_factory=list)
     walls: list[WallModel] = Field(default_factory=list)
 
 
@@ -68,6 +82,12 @@ class PointModel(BaseModel):
     rssi_dbm: float = Field(ge=-120, le=-10)
     signal_percent: int | None = Field(default=None, ge=0, le=100)
     measurement_source: str = Field(default="manual", max_length=40)
+
+
+class CSIStartModel(BaseModel):
+    port: str = Field(min_length=1, max_length=128)
+    baud: int = Field(default=921600)
+    csi_column: int = Field(default=25, ge=1, le=80)
 
 
 @app.on_event("startup")
@@ -97,8 +117,10 @@ def hardware_status() -> dict[str, Any]:
         "windows_wifi_scanner": platform.system() == "Windows",
         "wifi_scanner_method": "Windows netsh WLAN commands",
         "rssi_quality": "Estimated from signal percentage; not calibrated dBm",
-        "csi_hardware": "Not implemented in this release; ESP32 required",
-        "motorized_scanner": "Not implemented in this release; external rig required",
+        "csi_hardware": csi_collector.status()["state"],
+        "csi_protocol": "ESP32-CSI-Tool CSV; configurable CSI field index",
+        "motorized_scanner": "Physical controller integration remains hardware/protocol-specific and is not armed",
+        "volumetric_dataset_import": True,
     }
 
 
@@ -118,15 +140,29 @@ def project_get() -> dict[str, Any]:
 @app.put("/api/project")
 def project_put(project: ProjectModel) -> dict[str, Any]:
     data = project.model_dump() if hasattr(project, "model_dump") else project.dict()
-    if data["router"]["x"] > data["width_m"] or data["router"]["y"] > data["height_m"]:
-        raise HTTPException(status_code=422, detail="Router position must be inside the floor plan.")
-    for wall in data["walls"]:
-        if max(wall["x1"], wall["x2"]) > data["width_m"] or max(wall["y1"], wall["y2"]) > data["height_m"]:
-            raise HTTPException(status_code=422, detail="Every wall endpoint must be inside the floor plan.")
-        if math_distance(wall["x1"], wall["y1"], wall["x2"], wall["y2"]) < 0.05:
-            raise HTTPException(status_code=422, detail="Wall length must be at least 5 cm.")
-        if wall["material"] not in {"drywall", "wood", "glass", "brick", "concrete", "metal"}:
-            raise HTTPException(status_code=422, detail="Unsupported wall material.")
+    if not data["floors"]:
+        data["floors"] = [{
+            "id": "floor_1", "name": "Ground floor", "elevation_m": 0.0,
+            "width_m": data["width_m"], "height_m": data["height_m"],
+            "wall_height_m": data["wall_height_m"], "floor_loss_db": 18.0,
+            "walls": data["walls"],
+        }]
+    floor_ids = [floor["id"] for floor in data["floors"]]
+    if len(floor_ids) != len(set(floor_ids)):
+        raise HTTPException(status_code=422, detail="Floor IDs must be unique.")
+    if data["router_floor_id"] not in floor_ids:
+        raise HTTPException(status_code=422, detail="Router floor must exist in the project.")
+    for floor in data["floors"]:
+        for wall in floor["walls"]:
+            if max(wall["x1"], wall["x2"]) > floor["width_m"] or max(wall["y1"], wall["y2"]) > floor["height_m"]:
+                raise HTTPException(status_code=422, detail=f"Wall endpoint outside floor: {floor['name']}.")
+            if math_distance(wall["x1"], wall["y1"], wall["x2"], wall["y2"]) < 0.05:
+                raise HTTPException(status_code=422, detail="Wall length must be at least 5 cm.")
+            if wall["material"] not in {"drywall", "wood", "glass", "brick", "concrete", "metal"}:
+                raise HTTPException(status_code=422, detail="Unsupported wall material.")
+    router_floor = next(floor for floor in data["floors"] if floor["id"] == data["router_floor_id"])
+    if data["router"]["x"] > router_floor["width_m"] or data["router"]["y"] > router_floor["height_m"]:
+        raise HTTPException(status_code=422, detail="Router position must be inside its floor.")
     return db.save_project(data)
 
 
@@ -155,8 +191,14 @@ def survey_points(session_id: int) -> list[dict[str, Any]]:
 def survey_point_add(session_id: int, point: PointModel) -> dict[str, Any]:
     data = point.model_dump() if hasattr(point, "model_dump") else point.dict()
     project = db.get_project()
-    if data["x"] > project["width_m"] or data["y"] > project["height_m"]:
-        raise HTTPException(status_code=422, detail="Survey point must be inside the saved floor plan.")
+    floors = project.get("floors") or [{
+        "id": "floor_1", "width_m": project["width_m"], "height_m": project["height_m"]
+    }]
+    floor = next((item for item in floors if item["id"] == data["floor_id"]), None)
+    if floor is None:
+        raise HTTPException(status_code=422, detail="Survey point floor does not exist.")
+    if data["x"] > floor["width_m"] or data["y"] > floor["height_m"]:
+        raise HTTPException(status_code=422, detail="Survey point must be inside its floor plan.")
     try:
         return db.add_point(session_id, data)
     except LookupError as exc:
@@ -166,35 +208,63 @@ def survey_point_add(session_id: int, point: PointModel) -> dict[str, Any]:
 @app.get("/api/coverage/measured")
 def coverage_measured(
     session_id: int = Query(..., ge=1),
+    floor_id: str = Query(default="floor_1", max_length=40),
     resolution: int = Query(default=36, ge=8, le=100),
 ) -> dict[str, Any]:
     project = db.get_project()
     if not any(item["id"] == session_id for item in db.list_sessions()):
         raise HTTPException(status_code=404, detail="Survey session not found.")
-    points = db.get_points(session_id)
+    floors = project.get("floors") or [{
+        "id": "floor_1", "width_m": project["width_m"], "height_m": project["height_m"]
+    }]
+    floor = next((item for item in floors if item["id"] == floor_id), None)
+    if floor is None:
+        raise HTTPException(status_code=404, detail="Floor not found.")
+    points = [p for p in db.get_points(session_id) if p["floor_id"] == floor_id]
     result = make_grid(
-        project["width_m"], project["height_m"], resolution,
+        floor["width_m"], floor["height_m"], resolution,
         lambda x, y: idw_value(x, y, points),
     )
-    result.update({"kind": "measured_idw", "point_count": len(points)})
+    result.update({"kind": "measured_idw", "point_count": len(points), "floor_id": floor_id})
     return result
 
 
 @app.get("/api/coverage/predicted")
-def coverage_predicted(resolution: int = Query(default=36, ge=8, le=100)) -> dict[str, Any]:
+def coverage_predicted(
+    floor_id: str = Query(default="floor_1", max_length=40),
+    resolution: int = Query(default=36, ge=8, le=100),
+) -> dict[str, Any]:
     project = db.get_project()
+    floors = project.get("floors") or [{
+        "id": "floor_1", "name": "Ground floor", "elevation_m": 0.0,
+        "width_m": project["width_m"], "height_m": project["height_m"],
+        "walls": project["walls"], "floor_loss_db": 18.0,
+    }]
+    target_floor = next((floor for floor in floors if floor["id"] == floor_id), None)
+    if target_floor is None:
+        raise HTTPException(status_code=404, detail="Floor not found.")
+    router_floor_id = project.get("router_floor_id", floors[0]["id"])
+    source_floor = next((floor for floor in floors if floor["id"] == router_floor_id), floors[0])
+    ordered = sorted(floors, key=lambda item: item["elevation_m"])
+    floor_count = abs(ordered.index(target_floor) - ordered.index(source_floor))
+    router_elevation = float(source_floor["elevation_m"]) + float(project["router"].get("z", 2.4))
+    target_elevation = float(target_floor["elevation_m"]) + 1.0
     frequency = int(project["frequency_mhz"])
     result = make_grid(
-        project["width_m"], project["height_m"], resolution,
-        lambda x, y: predict_rssi_dbm(
-            x, y, project["router"], project["walls"],
-            frequency, float(project["tx_power_dbm"]),
+        target_floor["width_m"], target_floor["height_m"], resolution,
+        lambda x, y: predict_rssi_3d_dbm(
+            x, y, target_elevation, project["router"], router_elevation,
+            target_floor["walls"], frequency, float(project["tx_power_dbm"]),
+            float(target_floor.get("floor_loss_db", 18.0)), floor_count,
         ),
     )
     result.update({
-        "kind": "theoretical_model",
+        "kind": "theoretical_3d_model",
         "frequency_mhz": frequency,
-        "notice": "Model estimate only. Real walls, construction, interference and antenna patterns affect results.",
+        "floor_id": floor_id,
+        "floor_name": target_floor["name"],
+        "floor_crossings": floor_count,
+        "notice": "Simplified 3D estimate: FSPL, 2D wall intersections on the target floor and one slab-loss allowance per floor crossed. Not a full 3D ray tracer.",
     })
     return result
 
@@ -257,6 +327,86 @@ def router_optimize(
         "method": "Coarse grid search maximizing mean predicted RSSI with a weak-area penalty",
         "notice": "The optimizer uses the same simplified RF model as the predicted map. Validate placement with a real walk survey.",
     }
+
+
+@app.get("/api/csi/ports")
+def csi_ports() -> dict[str, Any]:
+    try:
+        return {"ports": csi_collector.ports()}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/csi/start")
+def csi_start(config: CSIStartModel) -> dict[str, Any]:
+    try:
+        return csi_collector.start(config.port, config.baud, config.csi_column)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/csi/stop")
+def csi_stop() -> dict[str, Any]:
+    return csi_collector.stop()
+
+
+@app.get("/api/csi/status")
+def csi_status() -> dict[str, Any]:
+    return csi_collector.status()
+
+
+@app.get("/api/csi/frames")
+def csi_frames(limit: int = Query(default=30, ge=1, le=120)) -> list[dict[str, Any]]:
+    return csi_collector.recent(limit)
+
+
+@app.post("/api/volumetric/import")
+async def volumetric_import(request: Request, filename: str = Query(default="uploaded.csv", max_length=160)) -> dict[str, Any]:
+    raw = await request.body()
+    if len(raw) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="CSV is larger than the 10 MB limit.")
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded.") from exc
+    reader = csv.DictReader(io.StringIO(text))
+    headers = {str(name).strip().lower(): name for name in (reader.fieldnames or [])}
+    required = {"x", "y", "z"}
+    if not required.issubset(headers) or not ({"rssi_dbm", "rssi"} & set(headers)):
+        raise HTTPException(status_code=400, detail="CSV needs x,y,z and rssi_dbm (or rssi) columns.")
+    rssi_column = headers.get("rssi_dbm") or headers["rssi"]
+    points: list[dict[str, float]] = []
+    for line_no, row in enumerate(reader, start=2):
+        if not row or not any((value or "").strip() for value in row.values()):
+            continue
+        try:
+            point = {
+                "x": float(row[headers["x"]]),
+                "y": float(row[headers["y"]]),
+                "z": float(row[headers["z"]]),
+                "rssi_dbm": float(row[rssi_column]),
+            }
+        except (TypeError, ValueError, KeyError) as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid numeric value on CSV line {line_no}.") from exc
+        if any(abs(point[key]) > 10000 for key in ("x", "y", "z")) or not -120 <= point["rssi_dbm"] <= -10:
+            raise HTTPException(status_code=400, detail=f"Out-of-range value on CSV line {line_no}.")
+        points.append(point)
+        if len(points) > 100000:
+            raise HTTPException(status_code=413, detail="CSV contains more than 100,000 points.")
+    if not points:
+        raise HTTPException(status_code=400, detail="CSV contains no valid data rows.")
+    safe_name = Path(filename).name[:160] or "uploaded.csv"
+    saved = db.replace_volumetric_points(safe_name, points)
+    return {**saved, "preview": points[:10], "bounds": {
+        key: [min(point[key] for point in points), max(point[key] for point in points)]
+        for key in ("x", "y", "z", "rssi_dbm")
+    }}
+
+
+@app.get("/api/volumetric/points")
+def volumetric_points() -> dict[str, Any]:
+    points = db.get_volumetric_points()
+    return {"point_count": len(points), "points": points}
 
 
 @app.get("/api/project/export.json")
