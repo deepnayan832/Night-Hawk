@@ -1,3 +1,7 @@
+# Node.js / frontend build
+node_modules/
+nighthawk-backend/static/three-scene.js
+
 # Python
 __pycache__/
 *.py[cod]
