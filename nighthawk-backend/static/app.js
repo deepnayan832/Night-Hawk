@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
-const state = { project:null, sessions:[], points:[], networks:[], selectedPoint:null, activeSession:null, coverage:null, coveragePoints:[], coverageKind:"predicted", wallStart:null, mode:"select", scan:null };
-const titles = {overview:"Overview",scanner:"Wi-Fi Scanner",survey:"Home Survey",floorplan:"Floor Plan & 3D",coverage:"Coverage Maps"};
+const state = { project:null, sessions:[], points:[], networks:[], selectedPoint:null, activeSession:null, activeFloorId:"floor_1", coverage:null, coveragePoints:[], coverageKind:"predicted", wallStart:null, mode:"select", scan:null, volumetricPoints:[], csiTimer:null };
+const titles = {overview:"Overview",scanner:"Wi-Fi Scanner",survey:"Home Survey",floorplan:"Floor Plan & 3D",coverage:"Coverage Maps",csi:"CSI Sensing",volumetric:"Volumetric Data"};
 const api = async (path, options={}) => {
   const response = await fetch(path,{headers:{"Content-Type":"application/json",...(options.headers||{})},...options});
   const text = await response.text(); let data={};
@@ -11,14 +11,55 @@ const api = async (path, options={}) => {
 function toast(message,error=false){const el=$("toast");el.textContent=message;el.className="toast show"+(error?" error":"");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.className="toast",3200)}
 function dbmColor(v){if(v==null)return "#26364d";if(v>=-55)return "#54d49b";if(v>=-70)return "#d4cc68";if(v>=-85)return "#df9465";return "#ba5e78"}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function showView(name){document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+name));document.querySelectorAll(".nav-item").forEach(v=>v.classList.toggle("active",v.dataset.view===name));$("pageTitle").textContent=titles[name];if(name==="survey")drawPlan($("surveyCanvas"),true);if(name==="floorplan")drawAllPlans();if(name==="coverage"&&state.coverage){drawHeat();drawCoverage3D();}if(name==="overview")refreshStats()}
+function activeFloor(){return state.project?.floors?.find(f=>f.id===state.activeFloorId)||state.project?.floors?.[0]||null}
+function ensureFloorModel(project){
+  if(!Array.isArray(project.floors)||!project.floors.length){
+    project.floors=[{id:"floor_1",name:"Ground floor",elevation_m:0,width_m:project.width_m,height_m:project.height_m,wall_height_m:project.wall_height_m,floor_loss_db:18,walls:project.walls||[]}];
+  }
+  project.router_floor_id=project.router_floor_id||project.floors[0].id;
+  if(!project.floors.some(f=>f.id===state.activeFloorId))state.activeFloorId=project.active_floor_id||project.floors[0].id;
+  const floor=activeFloor();project.width_m=floor.width_m;project.height_m=floor.height_m;project.wall_height_m=floor.wall_height_m;project.walls=floor.walls||[];
+}
+function syncFloorFromForm(){
+  const floor=activeFloor();if(!floor)return;
+  floor.width_m=Number($("planWidth").value)||floor.width_m;
+  floor.height_m=Number($("planHeight").value)||floor.height_m;
+  floor.wall_height_m=Number($("wallHeight").value)||floor.wall_height_m;
+  floor.walls=state.project.walls;
+}
+function refreshFloorSelectors(){
+  const options=(state.project?.floors||[]).map(f=>'<option value="'+esc(f.id)+'">'+esc(f.name)+' · '+Number(f.elevation_m).toFixed(1)+' m</option>').join("");
+  $("activeFloor").innerHTML=options;$("surveyFloor").innerHTML=options;
+  $("activeFloor").value=state.activeFloorId;$("surveyFloor").value=state.activeFloorId;
+}
+function activateFloor(id,saveCurrent=true){
+  if(saveCurrent)syncFloorFromForm();
+  if(!state.project?.floors?.some(f=>f.id===id))return;
+  state.activeFloorId=id;const floor=activeFloor(),p=state.project;
+  p.width_m=floor.width_m;p.height_m=floor.height_m;p.wall_height_m=floor.wall_height_m;p.walls=floor.walls||[];
+  $("planWidth").value=floor.width_m;$("planHeight").value=floor.height_m;$("wallHeight").value=floor.wall_height_m;
+  refreshFloorSelectors();renderWallList();drawAllPlans();
+  $("planDimensions").textContent=floor.width_m+" × "+floor.height_m+" m";
+  $("savedLabel").textContent="FLOOR SELECTED";
+}
+function showView(name){
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+name));
+  document.querySelectorAll(".nav-item").forEach(v=>v.classList.toggle("active",v.dataset.view===name));
+  $("pageTitle").textContent=titles[name]||name;
+  if(name==="survey")drawPlan($("surveyCanvas"),true);
+  if(name==="floorplan")drawAllPlans();
+  if(name==="coverage"&&state.coverage){drawHeat();drawCoverage3D();}
+  if(name==="csi"){refreshCsiPorts().catch(e=>toast(e.message,true));refreshCsiStatus().catch(()=>{});startCsiPolling()}
+  if(name==="volumetric")loadVolumetric().catch(e=>toast(e.message,true));
+  if(name==="overview")refreshStats()
+}
 document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));
 document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.go)));
 window.addEventListener("resize",()=>{drawAllPlans();if(state.coverage){drawHeat();drawCoverage3D()}});
 async function boot(){
   try{
     const [health,project,sessions]=await Promise.all([api("/api/health"),api("/api/project"),api("/api/surveys")]);
-    state.project=project;state.sessions=sessions;
+    state.project=project;state.sessions=sessions;ensureFloorModel(project);
     $("apiStatus").innerHTML="<i></i> LOCAL API ONLINE";$("apiStatus").classList.remove("offline");
     $("apiDetail").textContent="Local service responding · "+health.version;$("apiBadge").textContent="ONLINE";
     $("dataLocation").textContent="SQLite · "+health.data_directory;
@@ -86,13 +127,36 @@ $("capturePoint").addEventListener("click",async()=>{
   const n=state.networks[Number($("networkSelect").value)]||{};
   const chosen=$("manualRssi").value!==""?Number($("manualRssi").value):n.rssi_dbm_estimate;
   if(!Number.isFinite(chosen)){toast("Select a scanned network or enter RSSI manually",true);return}
-  const payload={...state.selectedPoint,rssi_dbm:chosen,ssid:n.ssid||"",bssid:n.bssid||"",signal_percent:n.signal_percent??null,measurement_source:$("manualRssi").dataset.source==="manual"?"manual":"windows_netsh_signal_estimate"};
+  const payload={...state.selectedPoint,floor_id:state.activeFloorId,rssi_dbm:chosen,ssid:n.ssid||"",bssid:n.bssid||"",signal_percent:n.signal_percent??null,measurement_source:$("manualRssi").dataset.source==="manual"?"manual":"windows_netsh_signal_estimate"};
   try{await api("/api/surveys/"+state.activeSession+"/points",{method:"POST",body:JSON.stringify(payload)});await loadPoints(state.activeSession);toast("Measurement saved locally")}
   catch(e){toast(e.message,true)}
 });
 $("exportCsv").addEventListener("click",()=>{if(state.activeSession)window.location.href="/api/surveys/"+state.activeSession+"/export.csv"});
-function fillProjectForm(){const p=state.project;if(!p)return;$("projectName").value=p.name;$("planWidth").value=p.width_m;$("planHeight").value=p.height_m;$("wallHeight").value=p.wall_height_m;$("frequency").value=p.frequency_mhz;$("txPower").value=p.tx_power_dbm;$("routerX").value=p.router.x;$("routerY").value=p.router.y;renderWallList()}
-function projectFromForm(){const p=state.project;return {...p,name:$("projectName").value||"My Home",width_m:Number($("planWidth").value),height_m:Number($("planHeight").value),wall_height_m:Number($("wallHeight").value),frequency_mhz:Number($("frequency").value),tx_power_dbm:Number($("txPower").value),router:{...p.router,x:Number($("routerX").value),y:Number($("routerY").value)}}}
+function fillProjectForm(){
+  const p=state.project;if(!p)return;ensureFloorModel(p);const floor=activeFloor();
+  p.width_m=floor.width_m;p.height_m=floor.height_m;p.wall_height_m=floor.wall_height_m;p.walls=floor.walls||[];
+  $("projectName").value=p.name;$("planWidth").value=floor.width_m;$("planHeight").value=floor.height_m;$("wallHeight").value=floor.wall_height_m;
+  $("frequency").value=p.frequency_mhz;$("txPower").value=p.tx_power_dbm;$("routerX").value=p.router.x;$("routerY").value=p.router.y;
+  refreshFloorSelectors();renderWallList();
+}
+function projectFromForm(){
+  const p=state.project;syncFloorFromForm();
+  p.name=$("projectName").value||"My Home";p.width_m=Number($("planWidth").value);p.height_m=Number($("planHeight").value);p.wall_height_m=Number($("wallHeight").value);
+  p.frequency_mhz=Number($("frequency").value);p.tx_power_dbm=Number($("txPower").value);
+  p.router={...p.router,x:Number($("routerX").value),y:Number($("routerY").value)};
+  p.router_floor_id=state.activeFloorId;
+  return {...p,floors:p.floors.map(f=>({...f,walls:f.walls||[]}))};
+}
+$("activeFloor").addEventListener("change",e=>activateFloor(e.target.value,true));
+$("surveyFloor").addEventListener("change",e=>activateFloor(e.target.value,true));
+$("addFloor").addEventListener("click",()=>{
+  syncFloorFromForm();
+  const name=prompt("New floor name","First floor");if(name===null)return;
+  const current=activeFloor(),id="floor_"+(state.project.floors.length+1);
+  const elevation=Math.max(...state.project.floors.map(f=>Number(f.elevation_m)))+3.2;
+  state.project.floors.push({id,name:name.trim()||"New floor",elevation_m:elevation,width_m:current.width_m,height_m:current.height_m,wall_height_m:current.wall_height_m,floor_loss_db:18,walls:[]});
+  activateFloor(id,false);toast("Floor added. Draw its internal walls and save the project.");
+});
 async function saveProject(){
   try{const p=projectFromForm();const saved=await api("/api/project",{method:"PUT",body:JSON.stringify(p)});state.project=saved;fillProjectForm();$("savedLabel").textContent="SAVED · "+new Date().toLocaleTimeString();drawAllPlans();refreshStats();toast("Floor plan saved to local SQLite")}
   catch(e){toast(e.message,true)}
@@ -113,7 +177,7 @@ $("projectFile").addEventListener("change",async e=>{
 $("optimizeRouter").addEventListener("click",async()=>{
   $("optimizeRouter").disabled=true;$("optimizeRouter").textContent="Calculating…";
   try{
-    const result=await api("/api/router/optimize?step_m=1&resolution=10");
+    const result=await api("/api/router/optimize?step_m=1&resolution=10&floor_id="+encodeURIComponent(state.activeFloorId));
     const best=result.best;
     if(!best)throw new Error("No candidate router position found");
     $("routerX").value=best.x;$("routerY").value=best.y;
@@ -158,8 +222,8 @@ function drawPlan(canvas,showPoints=false){
   for(let y=0;y<=p.height_m;y++){const q=worldToCanvas(0,y,canvas);ctx.beginPath();ctx.moveTo(left,q.y);ctx.lineTo(left+p.width_m*scale,q.y);ctx.stroke()}
   ctx.strokeStyle="#628298";ctx.lineWidth=2;ctx.strokeRect(left,top,p.width_m*scale,p.height_m*scale);
   (p.walls||[]).forEach(wall=>{const a=worldToCanvas(wall.x1,wall.y1,canvas),b=worldToCanvas(wall.x2,wall.y2,canvas);ctx.strokeStyle=wallColor(wall.material);ctx.lineWidth=4;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()});
-  const r=worldToCanvas(p.router.x,p.router.y,canvas);ctx.fillStyle="#66e2df";ctx.beginPath();ctx.arc(r.x,r.y,7,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#66e2df55";ctx.lineWidth=8;ctx.beginPath();ctx.arc(r.x,r.y,13,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#b9f6ef";ctx.font="10px Manrope";ctx.fillText("ROUTER",r.x+12,r.y-10);
-  if(showPoints)state.points.forEach(point=>{const q=worldToCanvas(point.x,point.y,canvas);ctx.fillStyle=dbmColor(point.rssi_dbm);ctx.strokeStyle="#07111d";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(q.x,q.y,5,0,Math.PI*2);ctx.fill();ctx.stroke()});
+  if(p.router_floor_id===state.activeFloorId){const r=worldToCanvas(p.router.x,p.router.y,canvas);ctx.fillStyle="#66e2df";ctx.beginPath();ctx.arc(r.x,r.y,7,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#66e2df55";ctx.lineWidth=8;ctx.beginPath();ctx.arc(r.x,r.y,13,0,Math.PI*2);ctx.stroke();ctx.fillStyle="#b9f6ef";ctx.font="10px Manrope";ctx.fillText("ROUTER",r.x+12,r.y-10)}
+  if(showPoints)state.points.filter(point=>point.floor_id===state.activeFloorId).forEach(point=>{const q=worldToCanvas(point.x,point.y,canvas);ctx.fillStyle=dbmColor(point.rssi_dbm);ctx.strokeStyle="#07111d";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(q.x,q.y,5,0,Math.PI*2);ctx.fill();ctx.stroke()});
   if(state.selectedPoint&&canvas.id==="surveyCanvas"){const q=worldToCanvas(state.selectedPoint.x,state.selectedPoint.y,canvas);ctx.strokeStyle="#fff";ctx.setLineDash([4,3]);ctx.beginPath();ctx.arc(q.x,q.y,9,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
 }
 function wallColor(m){return ({drywall:"#8cabc1",wood:"#c79c65",glass:"#74cad6",brick:"#cf806d",concrete:"#a5aebb",metal:"#a18ddd"})[m]||"#8cabc1"}
@@ -168,7 +232,7 @@ function handlePlanClick(canvas,e,mode){
   if(!state.project)return;const rect=canvas.getBoundingClientRect();const pos=canvasToWorld(e.clientX-rect.left,e.clientY-rect.top,canvas);const p=state.project;
   if(pos.x<0||pos.y<0||pos.x>p.width_m||pos.y>p.height_m)return;
   if(mode==="survey"){state.selectedPoint=pos;$("selectedCoord").textContent=pos.x+" m, "+pos.y+" m";$("capturePoint").disabled=!state.activeSession||$("manualRssi").value==="";drawPlan(canvas,true);return}
-  if(mode==="router"){p.router.x=pos.x;p.router.y=pos.y;$("routerX").value=pos.x;$("routerY").value=pos.y;drawAllPlans();$("savedLabel").textContent="UNSAVED CHANGES";return}
+  if(mode==="router"){p.router.x=pos.x;p.router.y=pos.y;p.router_floor_id=state.activeFloorId;$("routerX").value=pos.x;$("routerY").value=pos.y;drawAllPlans();$("savedLabel").textContent="UNSAVED CHANGES";return}
   if(mode==="wall"){
     if(!state.wallStart){state.wallStart=pos;$("toolHelp").textContent="First point set. Click the second point.";return}
     if(Math.hypot(pos.x-state.wallStart.x,pos.y-state.wallStart.y)<0.05){toast("Wall is too short",true);return}
@@ -178,26 +242,20 @@ function handlePlanClick(canvas,e,mode){
 $("surveyCanvas").addEventListener("click",e=>handlePlanClick($("surveyCanvas"),e,"survey"));
 $("planCanvas").addEventListener("click",e=>handlePlanClick($("planCanvas"),e,state.mode));
 function drawScene(){
-  const canvas=$("sceneCanvas");if(!canvas||!state.project)return;const {ctx,w,h}=canvasMetrics(canvas);const p=state.project;ctx.clearRect(0,0,w,h);ctx.fillStyle="#0a1321";ctx.fillRect(0,0,w,h);
-  const scale=Math.min(w/(p.width_m+p.height_m+4),h/((p.width_m+p.height_m)*.58+p.wall_height_m*1.1))*0.82;
-  const angle=Number($("orbit").value||0)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
-  const cx=w/2,cy=h*.72,zc=scale*.78;
-  const project=(x,y,z=0)=>{const dx=x-p.width_m/2,dy=y-p.height_m/2,u=c*dx-s*dy,v=s*dx+c*dy;return {x:cx+(u-v)*scale,y:cy+(u+v)*scale*.48-z*zc}};
-  const A=project(0,0),B=project(p.width_m,0),C=project(p.width_m,p.height_m),D=project(0,p.height_m);
-  ctx.fillStyle="#142a3a";ctx.strokeStyle="#4b7187";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.fill();ctx.stroke();
-  for(let i=0;i<=10;i++){ctx.strokeStyle="#2b4154";ctx.lineWidth=.6;const x=p.width_m*i/10;const a=project(x,0),b=project(x,p.height_m);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();const y=p.height_m*i/10;const d=project(0,y),e=project(p.width_m,y);ctx.beginPath();ctx.moveTo(d.x,d.y);ctx.lineTo(e.x,e.y);ctx.stroke()}
-  (p.walls||[]).forEach(wall=>{const a=project(wall.x1,wall.y1),b=project(wall.x2,wall.y2),at=project(wall.x1,wall.y1,p.wall_height_m),bt=project(wall.x2,wall.y2,p.wall_height_m);ctx.fillStyle=wallColor(wall.material)+"55";ctx.strokeStyle=wallColor(wall.material);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(bt.x,bt.y);ctx.lineTo(at.x,at.y);ctx.closePath();ctx.fill();ctx.stroke()});
-  const r=project(p.router.x,p.router.y,0.15);ctx.fillStyle="#66e2df";ctx.beginPath();ctx.arc(r.x,r.y,6,0,Math.PI*2);ctx.fill();ctx.fillStyle="#bdf9f2";ctx.font="10px Manrope";ctx.fillText("ACCESS POINT",r.x+10,r.y-10);
-  ctx.fillStyle="#7d95af";ctx.font="10px 'DM Mono'";ctx.fillText("ISOMETRIC FLOOR MODEL · "+p.width_m+" × "+p.height_m+" M",15,20);
+  if(!state.project||!window.NightHawk3D)return;
+  const p={...state.project,active_floor_id:state.activeFloorId,router:state.project.router_floor_id===state.activeFloorId?state.project.router:null};
+  const points=state.points.filter(point=>point.floor_id===state.activeFloorId);
+  window.NightHawk3D.renderHomeScene("sceneCanvas",p,points,Number($("orbit").value||0));
 }
 async function loadCoverage(kind){
   const session=Number($("coverageSession").value||state.activeSession||0);
   if(kind==="measured"&&!session){toast("Choose a survey session first",true);return}
   try{
-    const data=kind==="measured"?await api("/api/coverage/measured?session_id="+session+"&resolution=40"):await api("/api/coverage/predicted?resolution=40");
+    const floorParam="&floor_id="+encodeURIComponent(state.activeFloorId);
+    const data=kind==="measured"?await api("/api/coverage/measured?session_id="+session+"&resolution=40"+floorParam):await api("/api/coverage/predicted?resolution=40"+floorParam);
     state.coverage=data;state.coverageKind=kind;
-    state.coveragePoints=kind==="measured"?await api("/api/surveys/"+session+"/points"):[];
-    $("coverageTitle").textContent=kind==="measured"?"Measured signal heatmap":"Theoretical RF propagation model";
+    state.coveragePoints=kind==="measured"?(await api("/api/surveys/"+session+"/points")).filter(p=>p.floor_id===state.activeFloorId):[];
+    $("coverageTitle").textContent=(kind==="measured"?"Measured signal heatmap":"Theoretical RF propagation model")+" · "+(activeFloor()?.name||state.activeFloorId);
     $("coverageSubtitle").textContent=kind==="measured"?"IDW interpolation of "+data.point_count+" saved physical readings.":"Estimated from router position, frequency, distance and wall crossings.";
     $("coverageType").textContent=kind==="measured"?"MEASURED · IDW":"MODEL · ESTIMATE";
     $("coverageRange").textContent=data.min_dbm==null?"No data":data.min_dbm+" to "+data.max_dbm+" dBm";
@@ -219,32 +277,72 @@ function drawHeat(){
 }
 
 function drawCoverage3D(){
-  const canvas=$("coverage3dCanvas"),d=state.coverage;if(!canvas||!d||!state.project)return;
-  const {ctx,w,h}=canvasMetrics(canvas);ctx.clearRect(0,0,w,h);ctx.fillStyle="#0a1321";ctx.fillRect(0,0,w,h);
-  const p=state.project,angle=Number($("coverageOrbit").value||0)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
-  const scale=Math.min(w/(d.width_m+d.height_m+3),h/((d.width_m+d.height_m)*.62+3.8))*.82;
-  const cx=w/2,base=h*.76;
-  const project=(x,y,z)=>{const dx=x-d.width_m/2,dy=y-d.height_m/2,u=c*dx-s*dy,v=s*dx+c*dy;return {x:cx+(u-v)*scale,y:base+(u+v)*scale*.46-z*scale*.9,depth:u+v}};
-  const rows=d.values,n=rows.length;if(n<2)return;
-  const point=(ix,iy)=>{
-    const val=rows[iy][ix];const safe=val==null?-100:val;
-    const elevation=Math.max(.08,Math.min(2.5,(safe+100)/55*2.5));
-    return {...project(d.xs[ix],d.ys[iy],elevation),value:safe};
-  };
-  const tris=[];
-  for(let y=0;y<n-1;y++)for(let x=0;x<n-1;x++){
-    const a=point(x,y),b=point(x+1,y),c1=point(x+1,y+1),e=point(x,y+1);
-    const v1=(a.value+b.value+c1.value)/3,v2=(a.value+c1.value+e.value)/3;
-    tris.push({pts:[a,b,c1],value:v1,depth:(a.depth+b.depth+c1.depth)/3});
-    tris.push({pts:[a,c1,e],value:v2,depth:(a.depth+c1.depth+e.depth)/3});
-  }
-  tris.sort((a,b)=>b.depth-a.depth);
-  for(const tri of tris){ctx.beginPath();ctx.moveTo(tri.pts[0].x,tri.pts[0].y);ctx.lineTo(tri.pts[1].x,tri.pts[1].y);ctx.lineTo(tri.pts[2].x,tri.pts[2].y);ctx.closePath();ctx.fillStyle=dbmColor(tri.value);ctx.globalAlpha=.91;ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle="#07121c55";ctx.lineWidth=.45;ctx.stroke()}
-  const floor=[[0,0],[p.width_m,0],[p.width_m,p.height_m],[0,p.height_m]].map(q=>project(q[0],q[1],0));
-  ctx.strokeStyle="#8ca8bc";ctx.lineWidth=1.5;ctx.beginPath();floor.forEach((q,i)=>i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y));ctx.closePath();ctx.stroke();
-  const r=project(p.router.x,p.router.y,2.7);ctx.fillStyle="#f4ffff";ctx.strokeStyle="#07131b";ctx.lineWidth=2;ctx.beginPath();ctx.arc(r.x,r.y,5,0,Math.PI*2);ctx.fill();ctx.stroke();
-  ctx.fillStyle="#8aa1b8";ctx.font="10px Consolas,monospace";ctx.fillText(state.coverageKind==="measured"?"MEASURED IDW · 3D SURFACE":"MODELLED RF · 3D SURFACE",14,18);
+  if(!state.coverage||!state.project||!window.NightHawk3D)return;
+  const p={...state.project,router:state.project.router_floor_id===state.activeFloorId?state.project.router:null};
+  window.NightHawk3D.renderCoverageSurface("coverage3dCanvas",state.coverage,p,Number($("coverageOrbit").value||0));
 }
+
+
+async function refreshCsiPorts(){
+  const data=await api("/api/csi/ports"),select=$("csiPort"),current=select.value;
+  select.innerHTML=data.ports.length?data.ports.map(p=>'<option value="'+esc(p.device)+'">'+esc(p.device+" · "+p.description)+'</option>').join(""):'<option value="">No serial ports found</option>';
+  if(data.ports.some(p=>p.device===current))select.value=current;
+}
+function drawCsiChart(values){
+  const canvas=$("csiCanvas");if(!canvas)return;
+  const {ctx,w,h}=canvasMetrics(canvas);ctx.clearRect(0,0,w,h);ctx.fillStyle="#0a1321";ctx.fillRect(0,0,w,h);
+  if(!values?.length){ctx.fillStyle="#7489a2";ctx.font="12px Consolas";ctx.fillText("Waiting for a valid CSI_DATA serial frame…",18,30);return}
+  const max=Math.max(1,...values),gap=3,barW=Math.max(2,(w-36)/values.length-gap);
+  ctx.strokeStyle="#22364b";ctx.lineWidth=1;
+  for(let i=0;i<5;i++){const y=12+(h-30)*i/4;ctx.beginPath();ctx.moveTo(18,y);ctx.lineTo(w-18,y);ctx.stroke()}
+  values.forEach((v,i)=>{const bh=(h-38)*v/max;ctx.fillStyle="#61d4ce";ctx.fillRect(18+i*(barW+gap),h-16-bh,barW,bh)});
+  ctx.fillStyle="#8299b1";ctx.font="10px Consolas";ctx.fillText("SUBCARRIER AMPLITUDE",18,12);
+}
+async function refreshCsiStatus(){
+  const status=await api("/api/csi/status");
+  $("csiState").textContent=status.state.toUpperCase();$("csiPortLabel").textContent=status.port?status.port+" · "+status.baud+" baud":(status.error||"No device");
+  $("csiFrames").textContent=status.frames_received;$("csiSubcarriers").textContent=status.latest?.subcarrier_count??"—";
+  $("csiVariance").textContent=status.variance_mean??"—";
+  $("csiLiveTag").textContent=status.state==="connected"?"LIVE SERIAL DATA":status.state==="error"?"DEVICE ERROR":"WAITING FOR DEVICE";
+  $("connectCsi").disabled=status.state==="connected"||status.state==="connecting";
+  $("disconnectCsi").disabled=status.state!=="connected"&&status.state!=="connecting";
+  drawCsiChart(status.latest?.amplitudes||[]);
+}
+function startCsiPolling(){
+  if(state.csiTimer)return;
+  state.csiTimer=setInterval(()=>{if($("view-csi")?.classList.contains("active"))refreshCsiStatus().catch(e=>console.warn(e))},800);
+}
+$("refreshCsiPorts").addEventListener("click",()=>refreshCsiPorts().then(()=>toast("Serial ports refreshed")).catch(e=>toast(e.message,true)));
+$("connectCsi").addEventListener("click",async()=>{
+  try{
+    const config={port:$("csiPort").value,baud:Number($("csiBaud").value),csi_column:Number($("csiColumn").value)};
+    await api("/api/csi/start",{method:"POST",body:JSON.stringify(config)});
+    startCsiPolling();await refreshCsiStatus();toast("CSI serial reader started");
+  }catch(e){toast(e.message,true)}
+});
+$("disconnectCsi").addEventListener("click",async()=>{
+  try{await api("/api/csi/stop",{method:"POST",body:"{}"});await refreshCsiStatus();toast("CSI reader stopped")}
+  catch(e){toast(e.message,true)}
+});
+async function loadVolumetric(){
+  const data=await api("/api/volumetric/points");state.volumetricPoints=data.points||[];
+  $("volumeCount").textContent=data.point_count;
+  $("volumeSource").textContent=data.points.length?data.points[0].source_name:"No dataset imported";
+  if(data.points.length){const values=data.points.map(p=>p.rssi_dbm);$("volumeRange").textContent=Math.min(...values).toFixed(1)+" to "+Math.max(...values).toFixed(1)}
+  else $("volumeRange").textContent="—";
+  window.NightHawk3D?.renderVolumetricCloud("volumetricScene",state.volumetricPoints);
+}
+$("importVolumetric").addEventListener("click",async()=>{
+  const file=$("volumetricFile").files?.[0];if(!file){toast("Choose a CSV file first",true);return}
+  const button=$("importVolumetric");button.disabled=true;button.textContent="Importing…";
+  try{
+    const response=await fetch("/api/volumetric/import?filename="+encodeURIComponent(file.name),{method:"POST",headers:{"Content-Type":"text/csv"},body:await file.text()});
+    const data=await response.json();if(!response.ok)throw new Error(data.detail||"CSV import failed");
+    await loadVolumetric();toast("Imported "+data.point_count+" volumetric measurements");
+  }catch(e){toast(e.message,true)}
+  finally{button.disabled=false;button.textContent="Import point cloud"}
+});
+$("reloadVolumetric").addEventListener("click",()=>loadVolumetric().then(()=>toast("Saved point cloud loaded")).catch(e=>toast(e.message,true)));
 
 async function loadSessionDropdowns(){
   state.sessions=await api("/api/surveys");fillSessions();refreshStats();
