@@ -49,7 +49,7 @@ class WindowsNetshParserTests(unittest.TestCase):
         self.assertTrue(result["networks"][0]["is_connected"])
         self.assertFalse(result["networks"][1]["is_connected"])
         self.assertEqual(result["networks"][0]["channel"], 36)
-        self.assertEqual(result["networks"][0]["band"], "5 GHz")
+        self.assertEqual(result["networks"][0]["band"], "5 GHz / 6 GHz")
         self.assertEqual(result["networks"][2]["band"], "2.4 GHz")
         self.assertEqual(result["networks"][0]["rssi_dbm_estimate"], -57.0)
         self.assertEqual(mocked.call_count, 2)
