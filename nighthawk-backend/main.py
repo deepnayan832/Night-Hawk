@@ -18,6 +18,7 @@ from rf import make_grid, idw_value, predict_rssi_dbm, predict_rssi_3d_dbm
 from wifi import scan_wifi
 from csi import collector as csi_collector
 from volumetric import parse_volumetric_csv, safe_source_name
+from scanplan import build_scan_plan
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -395,6 +396,28 @@ async def volumetric_import(request: Request, filename: str = Query(default="upl
         key: [min(point[key] for point in points), max(point[key] for point in points)]
         for key in ("x", "y", "z", "rssi_dbm")
     }}
+
+
+@app.get("/api/volumetric/scan-plan.csv")
+def volumetric_scan_plan(
+    width_m: float = Query(default=10.0, gt=0, le=100),
+    depth_m: float = Query(default=8.0, gt=0, le=100),
+    height_m: float = Query(default=2.4, gt=0, le=100),
+    step_m: float = Query(default=0.25, ge=0.02, le=5),
+) -> Response:
+    try:
+        waypoints = build_scan_plan(width_m, depth_m, height_m, step_m)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=["sequence", "x", "y", "z"])
+    writer.writeheader()
+    writer.writerows(waypoints)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="nighthawk-scan-waypoints.csv"'},
+    )
 
 
 @app.get("/api/volumetric/points")
