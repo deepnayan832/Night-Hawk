@@ -15,7 +15,8 @@ from pydantic import BaseModel, Field
 
 import db
 from rf import make_grid, idw_value, predict_rssi_dbm, predict_rssi_3d_dbm
-from wifi import scan_wifi
+from wifi import scan_wifi, get_interfaces
+from network_intel import get_network_info, discover_local_devices, analyze_channel_congestion
 from csi import collector as csi_collector
 from volumetric import parse_volumetric_csv, safe_source_name
 from scanplan import build_scan_plan
@@ -127,11 +128,126 @@ def hardware_status() -> dict[str, Any]:
 
 
 @app.get("/api/wifi/scan")
-def wifi_scan() -> dict[str, Any]:
+def wifi_scan(persist: bool = Query(default=True)) -> dict[str, Any]:
     try:
-        return scan_wifi()
+        result = scan_wifi()
+        if persist:
+            saved = db.save_wifi_scan(result)
+            result["scan_id"] = saved["id"]
+        return result
     except (RuntimeError, OSError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/network/interfaces")
+def network_interfaces() -> list[dict[str, Any]]:
+    try:
+        return get_interfaces()
+    except (RuntimeError, OSError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/network/info")
+def network_info() -> dict[str, Any]:
+    return get_network_info()
+
+
+@app.get("/api/network/devices")
+def network_devices() -> list[dict[str, Any]]:
+    net_info = get_network_info()
+    gw_ip = net_info.get("default_gateway")
+    return discover_local_devices(gw_ip if gw_ip != "Unavailable" else None)
+
+
+@app.get("/api/network/channels")
+def network_channels() -> dict[str, Any]:
+    try:
+        scan_res = scan_wifi()
+        networks = scan_res.get("networks", [])
+    except Exception:
+        networks = []
+    return analyze_channel_congestion(networks)
+
+
+@app.get("/api/wifi/history")
+def wifi_history(limit: int = Query(default=50, ge=1, le=200)) -> list[dict[str, Any]]:
+    return db.list_wifi_scans(limit=limit)
+
+
+@app.get("/api/wifi/history/compare")
+def wifi_history_compare(
+    baseline_id: int = Query(..., ge=1),
+    target_id: int = Query(..., ge=1),
+) -> dict[str, Any]:
+    try:
+        return db.compare_wifi_scans(baseline_id, target_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/wifi/history/export.csv")
+def wifi_history_export_csv() -> Response:
+    scans = db.list_wifi_scans(limit=100)
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow([
+        "scan_id", "scanned_at", "ssid", "bssid", "signal_percent",
+        "rssi_dbm_estimate", "channel", "band", "radio_type", "authentication", "is_connected"
+    ])
+    for s in scans:
+        full_scan = db.get_wifi_scan(s["id"])
+        if not full_scan:
+            continue
+        for net in full_scan.get("networks", []):
+            writer.writerow([
+                s["id"],
+                full_scan.get("scanned_at", ""),
+                net.get("ssid", ""),
+                net.get("bssid", ""),
+                net.get("signal_percent", ""),
+                net.get("rssi_dbm_estimate", ""),
+                net.get("channel", ""),
+                net.get("band", ""),
+                net.get("radio_type", ""),
+                net.get("authentication", ""),
+                1 if net.get("is_connected") else 0,
+            ])
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="nighthawk-scan-history.csv"'},
+    )
+
+
+@app.get("/api/wifi/history/export.json")
+def wifi_history_export_json() -> Response:
+    scans = db.list_wifi_scans(limit=100)
+    full_scans = []
+    for s in scans:
+        detail = db.get_wifi_scan(s["id"])
+        if detail:
+            full_scans.append(detail)
+    return Response(
+        content=json.dumps({"export_timestamp": db.utc_now(), "scans": full_scans}, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="nighthawk-scan-history.json"'},
+    )
+
+
+@app.get("/api/wifi/history/{scan_id}")
+def wifi_history_get(scan_id: int) -> dict[str, Any]:
+    scan = db.get_wifi_scan(scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan record not found.")
+    return scan
+
+
+@app.delete("/api/wifi/history/{scan_id}")
+def wifi_history_delete(scan_id: int) -> dict[str, Any]:
+    success = db.delete_wifi_scan(scan_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Scan record not found.")
+    return {"ok": True, "deleted_scan_id": scan_id}
 
 
 @app.get("/api/project")

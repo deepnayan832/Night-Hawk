@@ -256,6 +256,35 @@ export function renderCoverageSurface(elementId, data, project, angleDegrees = 0
   return true;
 }
 
+export function setCameraMode(elementId, mode = "perspective") {
+  const instance = instances.get(elementId);
+  if (!instance) return false;
+  const { camera, controls } = instance;
+  const target = controls.target || new THREE.Vector3(0, 0, 0);
+
+  if (mode === "top_down") {
+    // Top-down overhead plan view
+    camera.position.set(target.x, 22, target.z + 0.001);
+    camera.lookAt(target.x, 0, target.z);
+    controls.maxPolarAngle = 0.05; // Lock to overhead
+    controls.minPolarAngle = 0;
+  } else if (mode === "room_walk") {
+    // Eye level inside room
+    controls.maxPolarAngle = Math.PI * 0.52;
+    controls.minPolarAngle = Math.PI * 0.1;
+    camera.position.set(target.x - 1.5, 1.65, target.z + 2.0);
+    camera.lookAt(target.x, 1.4, target.z);
+  } else {
+    // Default 3D Orbit perspective
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.minPolarAngle = 0;
+    camera.position.set(13, 12, 15);
+    camera.lookAt(target);
+  }
+  controls.update();
+  return true;
+}
+
 export function disposeScene(elementId) {
   const instance = instances.get(elementId);
   if (!instance) return;

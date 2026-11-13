@@ -1,4 +1,4 @@
-# NightHawk environment diagnostics
+﻿# NightHawk environment diagnostics
 $ErrorActionPreference = "Continue"
 $root = $PSScriptRoot
 $backend = Join-Path $root "nighthawk-backend"
@@ -11,13 +11,18 @@ if ($nodeCmd) { node --version } else { Write-Host "Node.js not found; required 
 $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
 if ($npmCmd) { npm --version } else { Write-Host "npm not found; required to build Three.js." -ForegroundColor Red }
 
-$python = Join-Path $root ".venv\Scripts\python.exe"
+$venvCandidates = @(
+    (Join-Path $root ".venv\Scripts\python.exe"),
+    (Join-Path $root "venv\Scripts\python.exe")
+)
+$python = $venvCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $python) { $python = Join-Path $root ".venv\Scripts\python.exe" }
 if (Test-Path $python) {
     & $python -c "import fastapi, uvicorn, serial; print('FastAPI, Uvicorn and pyserial imports: OK')"
     if ($LASTEXITCODE -ne 0) { Write-Host "Python dependencies missing. Run .\setup.ps1" -ForegroundColor Red }
 } else { Write-Host "Virtual environment missing. Run .\setup.ps1" -ForegroundColor Yellow }
 
-foreach ($path in @("main.py","wifi.py","rf.py","db.py","csi.py","volumetric.py","scanplan.py")) {
+foreach ($path in @("main.py","wifi.py","network_intel.py","rf.py","db.py","csi.py","volumetric.py","scanplan.py")) {
     if (Test-Path (Join-Path $backend $path)) { Write-Host "$path : present" -ForegroundColor Green }
     else { Write-Host "$path : missing" -ForegroundColor Red }
 }

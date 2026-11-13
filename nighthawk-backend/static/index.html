@@ -15,7 +15,10 @@
     <nav class="nav">
       <button class="nav-item active" data-view="overview"><span>◈</span> Overview</button>
       <button class="nav-item" data-view="scanner"><span>⌁</span> Wi-Fi Scanner</button>
-      <button class="nav-item" data-view="survey"><span>⌖</span> Home Survey</button>
+      <button class="nav-item" data-view="network"><span>⌖</span> Network & Devices</button>
+      <button class="nav-item" data-view="channels"><span>⚑</span> Channel Spectrum</button>
+      <button class="nav-item" data-view="history"><span>◷</span> Scan History</button>
+      <button class="nav-item" data-view="survey"><span>📍</span> Home Survey</button>
       <button class="nav-item" data-view="floorplan"><span>▦</span> Floor Plan & 3D</button>
       <button class="nav-item" data-view="coverage"><span>◉</span> Coverage Maps</button>
       <button class="nav-item" data-view="csi"><span>∿</span> CSI Sensing</button>
@@ -61,6 +64,246 @@
       <div class="notice warning-notice"><b>About RSSI</b><p>Windows netsh usually exposes signal quality as a percentage. NightHawk converts that percentage to a rough dBm estimate and labels it as an estimate. It is not a calibrated hardware RSSI measurement. Nearby-network listing may require Windows Location access.</p></div>
     </section>
 
+    <!-- View: Network & Devices -->
+    <section class="view" id="view-network">
+      <div class="view-intro">
+        <div>
+          <div class="eyebrow">TIER 1 · HOST NETWORK & LOCAL DEVICES</div>
+          <h2>Network Configuration & Device Discovery</h2>
+          <p>Inspect local IP routing, default gateway latency, network interfaces, and ARP devices.</p>
+        </div>
+        <button class="btn primary" id="refreshNetworkBtn">↻ Refresh network</button>
+      </div>
+
+      <div class="stats-grid">
+        <article class="stat-card">
+          <div class="stat-label">LOCAL IP ADDRESS</div>
+          <strong id="netLocalIp">—</strong>
+          <small id="netSubnet">Subnet: —</small>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">DEFAULT GATEWAY</div>
+          <strong id="netGateway">—</strong>
+          <small id="netPing">Ping latency: —</small>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">DISCOVERED DEVICES</div>
+          <strong id="netDeviceCount">0</strong>
+          <small>Active ARP entries</small>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">INTERNET REACHABILITY</div>
+          <strong id="netInternet">Checking…</strong>
+          <small id="netDns">DNS: Auto / DHCP</small>
+        </article>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h3>Wireless Network Interfaces</h3>
+            <p>Physical Wi-Fi adapters detected by Windows netsh WLAN API.</p>
+          </div>
+          <span class="live-pill">NATIVE INTERFACES</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>INTERFACE NAME</th>
+                <th>ADAPTER DESCRIPTION</th>
+                <th>MAC ADDRESS</th>
+                <th>STATE</th>
+                <th>RADIO TYPE</th>
+                <th>SIGNAL</th>
+                <th>LINK RATES (Rx/Tx)</th>
+              </tr>
+            </thead>
+            <tbody id="interfaceRows">
+              <tr><td colspan="7" class="empty">Loading interface details…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h3>Discovered Local Network Devices</h3>
+            <p>Safe local subnet device inventory via standard Windows ARP inspection.</p>
+          </div>
+          <div class="table-actions">
+            <input type="text" id="deviceSearch" placeholder="Filter devices…" class="search-input">
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>IP ADDRESS</th>
+                <th>PHYSICAL MAC</th>
+                <th>DEVICE VENDOR / ROLE</th>
+                <th>ALLOCATION</th>
+                <th>STATUS</th>
+              </tr>
+            </thead>
+            <tbody id="deviceRows">
+              <tr><td colspan="5" class="empty">Loading local devices…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="notice">
+        <b>Safe Device Discovery</b>
+        <p>NightHawk reads the local operating system ARP cache and queries the default gateway. It never conducts intrusive port sweeps, packet injections, or unauthorized interception.</p>
+      </div>
+    </section>
+
+    <!-- View: Channel Overlap & Spectrum -->
+    <section class="view" id="view-channels">
+      <div class="view-intro">
+        <div>
+          <div class="eyebrow">RF SPECTRUM & INTERFERENCE</div>
+          <h2>Wi-Fi Channel Overlap & Congestion</h2>
+          <p>Analyze co-channel and adjacent-channel congestion across 2.4 GHz and 5 GHz frequency bands.</p>
+        </div>
+        <button class="btn primary" id="refreshChannelsBtn">↻ Re-analyze spectrum</button>
+      </div>
+
+      <div class="stats-grid">
+        <article class="stat-card">
+          <div class="stat-label">RECOMMENDED 2.4 GHz CHANNEL</div>
+          <strong id="rec2g">Channel —</strong>
+          <small id="rec2gNote">Least interference</small>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">RECOMMENDED 5 GHz CHANNEL</div>
+          <strong id="rec5g">Channel —</strong>
+          <small id="rec5gNote">Cleanest spectrum</small>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">2.4 GHz NETWORKS</div>
+          <strong id="total2gCount">0</strong>
+          <small>Visible BSSIDs</small>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">5 GHz NETWORKS</div>
+          <strong id="total5gCount">0</strong>
+          <small>Visible BSSIDs</small>
+        </article>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h3>2.4 GHz Channel Utilization & Overlap</h3>
+            <p>Non-overlapping channels (1, 6, 11) marked. Overlap scores calculate co-channel and adjacent RF impact.</p>
+          </div>
+          <span class="status-tag">2.4 GHz SPECTRUM</span>
+        </div>
+        <div class="channel-chart-wrap">
+          <div class="channel-chart" id="chart2g"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h3>5 GHz Channel Distribution</h3>
+            <p>5 GHz channels provide 20, 40, 80, and 160 MHz channel bonding with significantly reduced co-channel conflict.</p>
+          </div>
+          <span class="status-tag">5 GHz SPECTRUM</span>
+        </div>
+        <div class="channel-chart-wrap">
+          <div class="channel-chart" id="chart5g"></div>
+        </div>
+      </div>
+
+      <div class="notice">
+        <b>Spectrum Optimization Rules</b>
+        <p id="channelTips">Loading channel recommendations…</p>
+      </div>
+    </section>
+
+    <!-- View: Scan History & Diff -->
+    <section class="view" id="view-history">
+      <div class="view-intro">
+        <div>
+          <div class="eyebrow">CHRONOLOGICAL RF AUDIT</div>
+          <h2>Wi-Fi Scan History & Comparisons</h2>
+          <p>Review past environment scans, track newly appeared or disappeared access points, and compare signal shifts.</p>
+        </div>
+        <div class="history-actions">
+          <button class="btn secondary" id="exportHistoryCsv">↓ Export CSV</button>
+          <button class="btn secondary" id="exportHistoryJson">↓ Export JSON</button>
+          <button class="btn primary" id="compareScansBtn" disabled>⇄ Compare 2 Scans</button>
+        </div>
+      </div>
+
+      <div id="diffDrawer" class="diff-drawer hidden">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h3 id="diffTitle">Scan Comparison Delta</h3>
+              <p id="diffSubtitle">Comparing baseline with target scan.</p>
+            </div>
+            <button class="icon-btn" id="closeDiffBtn">✕</button>
+          </div>
+          <div class="diff-summary-grid">
+            <div><span>PERSISTENT NETWORKS</span><strong id="diffCommon">0</strong></div>
+            <div><span>NEWLY APPEARED</span><strong id="diffNew" class="green">0</strong></div>
+            <div><span>DISAPPEARED</span><strong id="diffLost" class="red">0</strong></div>
+            <div><span>AVG SIGNAL DELTA</span><strong id="diffAvgDelta">—</strong></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>SSID</th>
+                  <th>BSSID</th>
+                  <th>BAND</th>
+                  <th>CHANNEL</th>
+                  <th>BASELINE RSSI</th>
+                  <th>TARGET RSSI</th>
+                  <th>SIGNAL DELTA</th>
+                </tr>
+              </thead>
+              <tbody id="diffRows">
+                <tr><td colspan="7" class="empty">Select two scans and click Compare.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h3>Archived Environment Scans</h3>
+            <p>Every completed scan is persisted locally to SQLite.</p>
+          </div>
+          <span class="live-pill" id="historyPill">0 ARCHIVED SCANS</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th width="40"><input type="checkbox" id="selectAllHistory"></th>
+                <th>SCAN ID</th>
+                <th>TIMESTAMP</th>
+                <th>CONNECTED ACCESS POINT</th>
+                <th>NETWORKS DISCOVERED</th>
+                <th>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="historyRows">
+              <tr><td colspan="6" class="empty">Loading scan history…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section class="view" id="view-survey">
       <div class="view-intro"><div><div class="eyebrow">REAL-WORLD WALK SURVEY</div><h2>Collect signal measurements</h2><p>Walk to a position, click the floor plan, and save the current Wi-Fi reading.</p></div><button class="btn primary" id="newSurvey">＋ New survey</button></div>
       <div class="toolbar"><label>Survey session<select id="sessionSelect"><option value="">No survey session</option></select></label><label>Floor<select id="surveyFloor"></select></label><label>Network<select id="networkSelect"><option value="">Scan networks first</option></select></label><label>RSSI dBm<input type="number" id="manualRssi" min="-120" max="-10" step="1" placeholder="e.g. -61"></label><button class="btn secondary" id="capturePoint" disabled>＋ Save point</button></div>
@@ -82,7 +325,21 @@
         </div>
         <div class="panel plan-panel"><div class="panel-head"><div><h3>2D floor plan</h3><p>Click to draw walls or reposition the router.</p></div><span class="live-pill">EDITOR</span></div><div class="canvas-wrap"><canvas id="planCanvas"></canvas></div><div class="canvas-foot"><span id="planDimensions">10 × 8 m</span><span id="wallCount">0 walls</span></div></div>
       </div>
-      <div class="panel scene-panel"><div class="panel-head"><div><h3>3D spatial view</h3><p>Interactive Three.js WebGL room geometry with orbit controls.</p></div><label class="orbit-label">Rotate <input id="orbit" type="range" min="-60" max="60" value="0"></label></div><div class="canvas-wrap scene-wrap"><div id="sceneCanvas" class="three-host"></div></div></div>
+      <div class="panel scene-panel">
+        <div class="panel-head">
+          <div>
+            <h3>3D spatial view</h3>
+            <p>Interactive Three.js WebGL room geometry with orbit controls.</p>
+          </div>
+          <div class="cam-modes">
+            <button class="btn tiny secondary active" data-cam="perspective">3D Orbit</button>
+            <button class="btn tiny secondary" data-cam="top_down">Top-Down</button>
+            <button class="btn tiny secondary" data-cam="room_walk">Room Walk</button>
+          </div>
+          <label class="orbit-label">Rotate <input id="orbit" type="range" min="-60" max="60" value="0"></label>
+        </div>
+        <div class="canvas-wrap scene-wrap"><div id="sceneCanvas" class="three-host"></div></div>
+      </div>
     </section>
 
     <section class="view" id="view-coverage">

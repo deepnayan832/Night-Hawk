@@ -29,12 +29,18 @@ The desktop app runs locally on the Windows PC. GitHub Pages hosts the project i
 
 | Module | Current implementation |
 |---|---|
-| Windows Wi-Fi scanner | Uses Windows `netsh wlan` to list visible SSIDs/BSSIDs, signal quality, channel and authentication data |
-| Signal quality | Shows the Windows percentage and a labelled approximate dBm conversion; it is not calibrated RSSI |
+| Windows Wi-Fi scanner | Uses Windows `netsh wlan` to list visible SSIDs/BSSIDs, signal quality, channel, authentication and live interface details |
+| Network interfaces | Discovers all physical WLAN adapters with GUID, MAC, radio type, state, and hardware link rates (Rx/Tx Mbps) |
+| Gateway & Network info | Detects local IP, subnet mask, default gateway, DNS servers, gateway ping latency, and internet status |
+| Local device discovery | Safe passive/active subnet device discovery via Windows ARP table with vendor identification |
+| Channel spectrum & overlap | Analyzes 2.4 GHz and 5 GHz channel congestion, co-channel interference, and adjacent channel overlap recommendations |
+| Scan history & comparisons | Persists Wi-Fi environment scans in SQLite; diffs scans to track newly appeared, lost, and delta RSSI APs |
+| Scan data export | Exports historical scan records to structured CSV and JSON formats |
+| Signal quality | Shows the Windows percentage and true hardware RSSI in dBm where exposed, or labelled approximate conversions |
 | Home survey | Create sessions, click a position on the floor plan, save a reading and export CSV |
 | Multi-floor plans | Add floors with individual dimensions, elevations, wall geometry and floor-loss assumptions |
 | Floor-plan editor | Draw/remove material-labelled walls, edit room dimensions and place the router on a selected floor |
-| Three.js room view | Actual bundled Three.js/WebGL geometry with orbit, pan and zoom controls |
+| Three.js room view | Actual bundled Three.js/WebGL geometry with 3D Orbit, Top-Down 2D Orthographic, and Room Walk camera modes |
 | Measured coverage | Per-floor IDW interpolation using saved survey samples |
 | Predicted coverage | Per-floor 3D-distance FSPL model, target-floor wall intersections and simplified floor-slab attenuation |
 | 3D RF surface | Three.js surface mesh with signal strength represented by elevation and colour |

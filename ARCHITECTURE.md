@@ -15,12 +15,13 @@ Windows 10/11
             │
             ▼
 Python / FastAPI local server (127.0.0.1:8765)
-   ├── wifi.py       Windows WLAN scan and signal-quality parsing
-   ├── rf.py         FSPL, wall intersections, IDW, 3D slab-loss estimate
-   ├── db.py         Projects, floors, surveys and volumetric point storage
-   ├── csi.py        Optional serial collector and CSI I/Q parser
-   ├── volumetric.py CSV validation and point conversion
-   ├── scanplan.py   Bounded serpentine waypoint planner
+   ├── wifi.py          Windows WLAN interface introspection, BSSID parser, hardware RSSI
+   ├── network_intel.py Local IP/gateway ping, non-intrusive ARP device discovery, 2.4/5GHz spectrum analysis
+   ├── rf.py            FSPL, wall intersections, IDW, 3D slab-loss estimate
+   ├── db.py            Projects, floors, surveys, volumetric clouds, scan history and diffs
+   ├── csi.py           Optional serial collector and CSI I/Q parser
+   ├── volumetric.py    CSV validation and point conversion
+   ├── scanplan.py      Bounded serpentine waypoint planner
    └── static/
        ├── index.html / style.css / app.js
        └── three-scene.js (built locally from nighthawk-ui/src/three-scene.js)
@@ -32,11 +33,31 @@ SQLite database
 
 The app binds to loopback only. Three.js is bundled locally during setup; the desktop app does not need a CDN at runtime.
 
-## 2. Windows WLAN scanner
+## 2. Windows WLAN Scanner & Adapter Introspection
 
 `GET /api/wifi/scan` invokes `netsh wlan show interfaces` and `netsh wlan show networks mode=bssid`. It parses connected-interface and visible BSSID fields when exposed by the Windows driver and command output.
 
-Windows often provides signal quality as a percentage, not calibrated received power. The conversion shown in the UI is an approximation and is stored with a source label. Parser fixtures are tested in CI; live adapter validation remains a Windows hardware task.
+`GET /api/network/interfaces` queries the Windows WLAN service for installed Wi-Fi adapters, reporting adapter name, description, GUID, MAC address, connection state, link transmit/receive rates (Mbps), radio type, signal percentage, and hardware-reported RSSI (dBm).
+
+Windows percentage-to-dBm conversions in general network tables are explicitly distinguished from calibrated measurements and labeled by source.
+
+## 2.1 Network Intelligence & Channel Congestion
+
+`network_intel.py` provides:
+- **Interface & Gateway Health (`/api/network/info`):** Queries local IPv4/IPv6 addresses, default gateway, subnet mask, and DNS servers using standard Windows network queries, measures round-trip ping latency to the gateway, and checks public DNS reachability.
+- **Local Device Discovery (`/api/network/devices`):** Inspects the host ARP cache (`arp -a`) non-intrusively without sending broadcast storms or unauthorized probe packets, mapping IP addresses, MAC addresses, known vendor OUIs (e.g. Apple, Google, Intel, Espressif), and gateway identification.
+- **Spectrum Overlap Analysis (`/api/network/channels`):** Calculates co-channel and adjacent-channel interference across 2.4 GHz channels (1-14 with spectral mask roll-off weighting) and 5 GHz channels (UNII-1, UNII-2, UNII-3), recommending cleanest channels for router configuration (favoring non-overlapping channels 1, 6, 11 on 2.4 GHz).
+
+## 2.2 Scan History & Differencing
+
+`db.py` persists complete Wi-Fi scans into SQLite (`wifi_scans` and `wifi_scan_entries` tables) in WAL mode.
+- `GET /api/wifi/history`: Lists recorded historical scans with timestamps, network counts, and best signal.
+- `GET /api/wifi/history/{scan_id}`: Retrieves full details of a specific scan.
+- `GET /api/wifi/history/compare?scan_a={id}&scan_b={id}`: Computes differential metrics between two scans:
+  - New APs appeared
+  - APs dropped/disappeared
+  - Persistent APs with per-BSSID and average signal delta ($\Delta$ dBm)
+- `GET /api/wifi/history/export.csv` and `GET /api/wifi/history/export.json`: Export scan history for external analysis.
 
 ## 3. Project and multi-floor data model
 
@@ -70,7 +91,12 @@ Current scenes:
 - **RF surface:** Three.js mesh built from measured or predicted coverage grid values, with signal strength mapped to colour and elevation.
 - **Volumetric cloud:** 3D point cloud from imported x/y/z/RSSI CSV data.
 
-OrbitControls support rotate, pan and zoom. A compatible browser and GPU/WebGL support are required. CI builds the renderer bundle, but visual hardware validation must still be done on the target PC.
+Camera modes (`setCameraMode(elementId, mode)`):
+- **3D Orbit (`perspective`):** Full 3D orbiting around the center of the floor plan with rotate, pan, and zoom.
+- **Top-Down (`top_down`):** Overhead 2D architectural blueprint view looking directly down along the Y-axis.
+- **Room Walk (`room_walk`):** Eye-level interior perspective (1.65m height) positioned inside the floor space looking outward across room walls.
+
+OrbitControls support rotate, pan and zoom. A compatible browser and GPU/WebGL support are required. CI builds the renderer bundle, and JavaScript syntax is verified in CI.
 
 ## 6. CSI serial module
 
@@ -95,7 +121,16 @@ The default field index is 25 based on the documented upstream live-plot parser.
 |---|---|---|
 | GET | `/api/health` | API and database health |
 | GET | `/api/hardware/status` | Platform and hardware capability status |
-| GET | `/api/wifi/scan` | Scan Windows-visible WLAN networks |
+| GET | `/api/network/interfaces` | Windows WLAN adapters, MAC, link speeds, true hardware RSSI |
+| GET | `/api/network/info` | Local IPv4/IPv6, gateway ping latency, DNS and internet connectivity |
+| GET | `/api/network/devices` | Discovered local LAN devices via ARP table with OUI vendor lookups |
+| GET | `/api/network/channels` | 2.4 GHz & 5 GHz channel congestion, overlap scores and best channels |
+| GET | `/api/wifi/scan` | Scan Windows-visible WLAN networks (with optional auto-persistence) |
+| GET | `/api/wifi/history` | List historical Wi-Fi scans from SQLite |
+| GET / DELETE | `/api/wifi/history/{id}` | Retrieve or delete specific historical scan record |
+| GET | `/api/wifi/history/compare` | Compare two scans (new APs, dropped APs, signal deltas) |
+| GET | `/api/wifi/history/export.csv` | Export scan history to CSV |
+| GET | `/api/wifi/history/export.json` | Export scan history to JSON |
 | GET / PUT | `/api/project` | Read/save multi-floor project |
 | GET | `/api/project/export.json` | Download project JSON |
 | POST | `/api/project/import` | Validate/import project JSON |

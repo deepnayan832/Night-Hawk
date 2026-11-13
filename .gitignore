@@ -1,5 +1,7 @@
 # Node.js / frontend build
 node_modules/
+dist/
+nighthawk-ui/dist/
 nighthawk-backend/static/three-scene.js
 
 # Python
@@ -51,3 +53,4 @@ logs/
 *.bak
 .cache/
 temp/
+repos/

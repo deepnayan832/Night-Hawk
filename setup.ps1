@@ -1,9 +1,14 @@
-# NightHawk setup — portable from any clone location
+﻿# NightHawk setup — portable from any clone location
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $backend = Join-Path $root "nighthawk-backend"
 $ui = Join-Path $root "nighthawk-ui"
-$venv = Join-Path $root ".venv"
+$venvCandidates = @(
+    (Join-Path $root ".venv"),
+    (Join-Path $root "venv")
+)
+$existingVenv = $venvCandidates | Where-Object { Test-Path (Join-Path $_ "Scripts\python.exe") } | Select-Object -First 1
+$venv = if ($existingVenv) { $existingVenv } else { Join-Path $root ".venv" }
 $python = Join-Path $venv "Scripts\python.exe"
 
 Write-Host "=== NIGHTHAWK SETUP ===" -ForegroundColor Cyan

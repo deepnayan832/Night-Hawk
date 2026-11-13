@@ -2,7 +2,12 @@
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $backend = Join-Path $root "nighthawk-backend"
-$python = Join-Path $root ".venv\Scripts\python.exe"
+$venvCandidates = @(
+    (Join-Path $root ".venv\Scripts\python.exe"),
+    (Join-Path $root "venv\Scripts\python.exe")
+)
+$python = $venvCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $python) { $python = Join-Path $root ".venv\Scripts\python.exe" }
 $sceneBundle = Join-Path $backend "static\three-scene.js"
 $pidFile = Join-Path $root ".nighthawk-server.pid"
 $url = "http://127.0.0.1:8765"

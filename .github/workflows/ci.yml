@@ -85,6 +85,10 @@ jobs:
             if (-not $project.floors -or $project.floors.Count -lt 1) { throw "Default floor was not initialized." }
             $coverage = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/coverage/predicted?floor_id=floor_1&resolution=8" -TimeoutSec 10
             if ($coverage.kind -ne "theoretical_3d_model") { throw "Floor-aware RF endpoint smoke test failed." }
+            $netInfo = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/network/info" -TimeoutSec 5
+            if (-not $netInfo.local_ip) { throw "Network info endpoint smoke test failed." }
+            $history = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/wifi/history" -TimeoutSec 5
+            if ($null -eq $history) { throw "Wi-Fi scan history endpoint smoke test failed." }
             Write-Host "Windows local app smoke test passed." -ForegroundColor Green
           } finally {
             if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }

@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
-const state = { project:null, sessions:[], points:[], networks:[], selectedPoint:null, activeSession:null, activeFloorId:"floor_1", coverage:null, coveragePoints:[], coverageKind:"predicted", wallStart:null, mode:"select", scan:null, volumetricPoints:[], csiTimer:null };
-const titles = {overview:"Overview",scanner:"Wi-Fi Scanner",survey:"Home Survey",floorplan:"Floor Plan & 3D",coverage:"Coverage Maps",csi:"CSI Sensing",volumetric:"Volumetric Data"};
+const state = { project:null, sessions:[], points:[], networks:[], selectedPoint:null, activeSession:null, activeFloorId:"floor_1", coverage:null, coveragePoints:[], coverageKind:"predicted", wallStart:null, mode:"select", scan:null, volumetricPoints:[], csiTimer:null, devices:[], interfaces:[], history:[], selectedHistoryIds:new Set(), channelData:null };
+const titles = {overview:"Overview",scanner:"Wi-Fi Scanner",network:"Network & Devices",channels:"Channel Spectrum",history:"Scan History",survey:"Home Survey",floorplan:"Floor Plan & 3D",coverage:"Coverage Maps",csi:"CSI Sensing",volumetric:"Volumetric Data"};
 const api = async (path, options={}) => {
   const response = await fetch(path,{headers:{"Content-Type":"application/json",...(options.headers||{})},...options});
   const text = await response.text(); let data={};
@@ -46,6 +46,9 @@ function showView(name){
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+name));
   document.querySelectorAll(".nav-item").forEach(v=>v.classList.toggle("active",v.dataset.view===name));
   $("pageTitle").textContent=titles[name]||name;
+  if(name==="network")loadNetworkData().catch(e=>toast(e.message,true));
+  if(name==="channels")loadChannelData().catch(e=>toast(e.message,true));
+  if(name==="history")loadHistoryData().catch(e=>toast(e.message,true));
   if(name==="survey")drawPlan($("surveyCanvas"),true);
   if(name==="floorplan")drawAllPlans();
   if(name==="coverage"&&state.coverage){drawHeat();drawCoverage3D();}
@@ -357,3 +360,257 @@ async function loadSessionDropdowns(){
 }
 $("coverageSession").addEventListener("change",()=>{});
 boot().then(()=>loadSessionDropdowns().catch(()=>{}));
+
+// Network & Devices Controller
+async function loadNetworkData() {
+  const [netInfo, ifaces, devs] = await Promise.all([
+    api("/api/network/info"),
+    api("/api/network/interfaces"),
+    api("/api/network/devices")
+  ]);
+  state.interfaces = ifaces || [];
+  state.devices = devs || [];
+
+  $("netLocalIp").textContent = netInfo.local_ip || "127.0.0.1";
+  $("netSubnet").textContent = "Subnet: " + (netInfo.subnet_mask || "—");
+  $("netGateway").textContent = netInfo.default_gateway || "—";
+  $("netPing").textContent = netInfo.gateway_ping_ms != null ? ("Latency: " + netInfo.gateway_ping_ms + " ms (" + netInfo.gateway_packet_loss_percent + "% loss)") : "Gateway unreachable";
+  $("netDeviceCount").textContent = state.devices.length;
+  $("netInternet").textContent = netInfo.internet_reachable ? "Connected" : "No Internet";
+  $("netInternet").style.color = netInfo.internet_reachable ? "var(--green)" : "var(--amber)";
+  $("netDns").textContent = "DNS: " + (netInfo.dns_servers?.join(", ") || "DHCP");
+
+  $("interfaceRows").innerHTML = state.interfaces.length ? state.interfaces.map(i => `
+    <tr>
+      <td><strong>${esc(i.name)}</strong>${i.is_connected ? ' <span class="status-tag">CONNECTED</span>' : ''}</td>
+      <td class="muted">${esc(i.description)}</td>
+      <td><code>${esc(i.physical_address)}</code></td>
+      <td><span class="status-tag ${i.is_connected ? '' : 'warning'}">${esc(i.state.toUpperCase())}</span></td>
+      <td>${esc(i.radio_type || "—")}</td>
+      <td>${i.signal_percent != null ? signalHtml(i) : '—'}<small class="muted"> ${i.rssi_dbm != null ? (i.rssi_dbm + ' dBm') : ''}</small></td>
+      <td>${i.receive_rate_mbps ? (i.receive_rate_mbps + ' / ' + i.transmit_rate_mbps + ' Mbps') : '—'}</td>
+    </tr>
+  `).join("") : '<tr><td colspan="7" class="empty">No wireless interfaces found.</td></tr>';
+
+  renderDevices(state.devices);
+}
+
+function renderDevices(devs) {
+  $("deviceRows").innerHTML = devs.length ? devs.map(d => `
+    <tr>
+      <td><strong>${esc(d.ip)}</strong>${d.is_local_host ? ' <span class="status-tag">THIS PC</span>' : (d.is_gateway ? ' <span class="status-tag">ROUTER</span>' : '')}</td>
+      <td><code>${esc(d.mac)}</code></td>
+      <td>${esc(d.vendor)}</td>
+      <td><span class="muted">${esc(d.type.toUpperCase())}</span></td>
+      <td><span class="status-tag">ONLINE</span></td>
+    </tr>
+  `).join("") : '<tr><td colspan="5" class="empty">No matching local network devices.</td></tr>';
+}
+
+$("deviceSearch")?.addEventListener("input", (e) => {
+  const query = e.target.value.toLowerCase().trim();
+  if (!query) {
+    renderDevices(state.devices);
+    return;
+  }
+  const filtered = state.devices.filter(d => d.ip.includes(query) || d.mac.includes(query) || d.vendor.toLowerCase().includes(query));
+  renderDevices(filtered);
+});
+$("refreshNetworkBtn")?.addEventListener("click", () => loadNetworkData().then(() => toast("Network details updated")).catch(e => toast(e.message, true)));
+
+// Channel Spectrum Controller
+async function loadChannelData() {
+  const data = await api("/api/network/channels");
+  state.channelData = data;
+  $("rec2g").textContent = "Channel " + (data.band_2g.recommended_channel || "—");
+  $("rec5g").textContent = "Channel " + (data.band_5g.recommended_channel || "—");
+  $("total2gCount").textContent = data.band_2g.spectrum.reduce((n, s) => n + s.count, 0);
+  $("total5gCount").textContent = data.band_5g.total_5g_networks || 0;
+  $("channelTips").textContent = data.tips?.join(" ") || "No tips available.";
+
+  const max2g = Math.max(1, ...data.band_2g.spectrum.map(s => s.count));
+  $("chart2g").innerHTML = data.band_2g.spectrum.map(s => {
+    const isRec = s.channel === data.band_2g.recommended_channel;
+    const isCongested = s.count >= 3;
+    const h = Math.max(10, (s.count / max2g) * 120);
+    const cls = isRec ? "recommended" : (isCongested ? "congested" : (s.count > 0 ? "active" : ""));
+    return `
+      <div class="channel-bar-col">
+        ${isRec ? '<span class="channel-star">★ BEST</span>' : ''}
+        <div class="channel-bar ${cls}" style="height:${h}px">
+          ${s.count > 0 ? `<span class="channel-count">${s.count}</span>` : ''}
+        </div>
+        <span class="channel-label">Ch ${s.channel}${s.is_standard ? '*' : ''}</span>
+      </div>
+    `;
+  }).join("");
+
+  const max5g = Math.max(1, ...(data.band_5g.spectrum.map(s => s.count)));
+  $("chart5g").innerHTML = data.band_5g.spectrum.map(s => {
+    const isRec = s.channel === data.band_5g.recommended_channel;
+    const h = Math.max(10, (s.count / max5g) * 120);
+    return `
+      <div class="channel-bar-col">
+        ${isRec ? '<span class="channel-star">★ BEST</span>' : ''}
+        <div class="channel-bar ${isRec ? 'recommended' : (s.count > 0 ? 'active' : '')}" style="height:${h}px">
+          ${s.count > 0 ? `<span class="channel-count">${s.count}</span>` : ''}
+        </div>
+        <span class="channel-label">${s.channel}</span>
+      </div>
+    `;
+  }).join("");
+}
+$("refreshChannelsBtn")?.addEventListener("click", () => loadChannelData().then(() => toast("Spectrum re-analyzed")).catch(e => toast(e.message, true)));
+
+// Scan History & Comparisons Controller
+async function loadHistoryData() {
+  const scans = await api("/api/wifi/history");
+  state.history = scans || [];
+  state.selectedHistoryIds.clear();
+  updateCompareButton();
+  $("historyPill").textContent = state.history.length + " ARCHIVED SCANS";
+  $("historyRows").innerHTML = state.history.length ? state.history.map(s => `
+    <tr>
+      <td><input type="checkbox" class="history-check" data-id="${s.id}"></td>
+      <td><strong>#${s.id}</strong></td>
+      <td>${new Date(s.scanned_at).toLocaleString()}</td>
+      <td><strong>${esc(s.connected_ssid || "Not connected")}</strong> <small class="muted">${esc(s.connected_bssid)}</small></td>
+      <td>${s.network_count} access points</td>
+      <td>
+        <button class="btn tiny secondary" onclick="viewScanDetails(${s.id})">Inspect</button>
+        <button class="btn tiny secondary" style="color:var(--red)" onclick="deleteScanRecord(${s.id})">Delete</button>
+      </td>
+    </tr>
+  `).join("") : '<tr><td colspan="6" class="empty">No past Wi-Fi scans recorded yet. Perform a scan in the Wi-Fi Scanner tab to populate history.</td></tr>';
+
+  document.querySelectorAll(".history-check").forEach(cb => {
+    cb.addEventListener("change", (e) => {
+      const id = Number(e.target.dataset.id);
+      if (e.target.checked) state.selectedHistoryIds.add(id);
+      else state.selectedHistoryIds.delete(id);
+      updateCompareButton();
+    });
+  });
+}
+
+function updateCompareButton() {
+  const btn = $("compareScansBtn");
+  if (!btn) return;
+  const count = state.selectedHistoryIds.size;
+  btn.disabled = count !== 2;
+  btn.textContent = count === 2 ? "⇄ Compare Selected (2)" : "⇄ Select 2 Scans to Compare";
+}
+
+window.viewScanDetails = async function(id) {
+  try {
+    const scan = await api("/api/wifi/history/" + id);
+    state.scan = scan;
+    state.networks = scan.networks || [];
+    showView("scanner");
+    $("connectedSsid").textContent = scan.connected?.ssid || "Not connected";
+    $("connectedSignal").textContent = scan.connected?.signal_percent == null ? "No connection" : ("Signal " + scan.connected.signal_percent + "% · " + (scan.connected.rssi_dbm_estimate ?? "—") + " dBm");
+    $("scanTime").textContent = "Archived scan from " + new Date(scan.scanned_at).toLocaleString();
+    $("networkCount").textContent = state.networks.length;
+    $("networkRows").innerHTML = state.networks.map(n => `
+      <tr>
+        <td><strong>${esc(n.ssid || "(Hidden)")}</strong>${n.is_connected ? ' <span class="status-tag">CONNECTED</span>' : ''}</td>
+        <td class="muted">${esc(n.bssid)}</td>
+        <td>${signalHtml(n)}<small class="muted"> est. ${n.rssi_dbm_estimate ?? "—"} dBm</small></td>
+        <td>${esc(n.channel ?? "—")}</td>
+        <td>${esc(n.band)}</td>
+        <td>${esc(n.authentication || "—")}</td>
+      </tr>
+    `).join("");
+    toast("Loaded archived scan #" + id);
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
+
+window.deleteScanRecord = async function(id) {
+  if (!confirm("Delete archived scan #" + id + "?")) return;
+  try {
+    await api("/api/wifi/history/" + id, { method: "DELETE" });
+    await loadHistoryData();
+    toast("Scan #" + id + " deleted");
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
+
+$("compareScansBtn")?.addEventListener("click", async () => {
+  const ids = Array.from(state.selectedHistoryIds).sort((a, b) => a - b);
+  if (ids.length !== 2) return;
+  try {
+    const diff = await api("/api/wifi/history/compare?baseline_id=" + ids[0] + "&target_id=" + ids[1]);
+    $("diffDrawer").classList.remove("hidden");
+    $("diffTitle").textContent = "Scan #" + ids[0] + " vs Scan #" + ids[1] + " Delta";
+    $("diffSubtitle").textContent = "Baseline: " + new Date(diff.baseline_scan.scanned_at).toLocaleTimeString() + " (" + diff.baseline_scan.network_count + " APs) → Target: " + new Date(diff.target_scan.scanned_at).toLocaleTimeString() + " (" + diff.target_scan.network_count + " APs)";
+    $("diffCommon").textContent = diff.summary.common_count;
+    $("diffNew").textContent = "+" + diff.summary.new_count;
+    $("diffLost").textContent = "-" + diff.summary.lost_count;
+    const deltaSign = diff.summary.average_signal_delta_dbm > 0 ? "+" : "";
+    $("diffAvgDelta").textContent = deltaSign + diff.summary.average_signal_delta_dbm + " dBm";
+
+    let rows = "";
+    diff.persistent_networks.forEach(p => {
+      const d = p.delta_rssi_dbm;
+      const sign = d > 0 ? "+" : "";
+      const badgeCls = d > 0 ? "plus" : (d < 0 ? "minus" : "neutral");
+      rows += `
+        <tr>
+          <td><strong>${esc(p.ssid || "(Hidden)")}</strong></td>
+          <td><code>${esc(p.bssid)}</code></td>
+          <td>${esc(p.band || "—")}</td>
+          <td>${esc(p.channel || "—")}</td>
+          <td>${p.baseline_rssi_dbm ?? "—"} dBm</td>
+          <td>${p.current_rssi_dbm ?? "—"} dBm</td>
+          <td><span class="diff-badge ${badgeCls}">${sign}${d ?? 0} dBm</span></td>
+        </tr>
+      `;
+    });
+    diff.new_networks.forEach(n => {
+      rows += `
+        <tr>
+          <td><strong>${esc(n.ssid || "(Hidden)")}</strong> <span class="diff-badge plus">+NEW</span></td>
+          <td><code>${esc(n.bssid)}</code></td>
+          <td>${esc(n.band || "—")}</td>
+          <td>${esc(n.channel || "—")}</td>
+          <td>—</td>
+          <td>${n.rssi_dbm_estimate ?? "—"} dBm</td>
+          <td><span class="diff-badge plus">APPEARED</span></td>
+        </tr>
+      `;
+    });
+    diff.lost_networks.forEach(n => {
+      rows += `
+        <tr>
+          <td><strong>${esc(n.ssid || "(Hidden)")}</strong> <span class="diff-badge minus">-LOST</span></td>
+          <td><code>${esc(n.bssid)}</code></td>
+          <td>${esc(n.band || "—")}</td>
+          <td>${esc(n.channel || "—")}</td>
+          <td>${n.rssi_dbm_estimate ?? "—"} dBm</td>
+          <td>—</td>
+          <td><span class="diff-badge minus">DISAPPEARED</span></td>
+        </tr>
+      `;
+    });
+    $("diffRows").innerHTML = rows || '<tr><td colspan="7" class="empty">No differences between scans.</td></tr>';
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
+$("closeDiffBtn")?.addEventListener("click", () => $("diffDrawer").classList.add("hidden"));
+$("exportHistoryCsv")?.addEventListener("click", () => window.location.href = "/api/wifi/history/export.csv");
+$("exportHistoryJson")?.addEventListener("click", () => window.location.href = "/api/wifi/history/export.json");
+
+// Camera Mode Switcher Controller
+document.querySelectorAll("[data-cam]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("[data-cam]").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    window.NightHawk3D?.setCameraMode("sceneCanvas", btn.dataset.cam);
+    toast("Camera view: " + btn.textContent);
+  });
+});
+
