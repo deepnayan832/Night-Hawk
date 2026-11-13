@@ -1,6 +1,6 @@
 import unittest
 
-from rf import fspl_db, idw_value, predict_rssi_dbm, segments_intersect, wall_loss_db
+from rf import fspl_db, idw_value, predict_rssi_dbm, predict_rssi_3d_dbm, segments_intersect, wall_loss_db
 
 
 class RFCoreTests(unittest.TestCase):
@@ -32,6 +32,12 @@ class RFCoreTests(unittest.TestCase):
         points = [{"x": 0, "y": 0, "rssi_dbm": -50}, {"x": 10, "y": 0, "rssi_dbm": -90}]
         value = idw_value(5, 0, points)
         self.assertTrue(-90 < value < -50)
+
+    def test_3d_model_applies_floor_slab_loss(self):
+        router = {"x": 2, "y": 2}
+        same_floor = predict_rssi_3d_dbm(5, 5, 1, router, 2.4, [], 5000, 18, 18, 0)
+        upper_floor = predict_rssi_3d_dbm(5, 5, 4.2, router, 2.4, [], 5000, 18, 18, 1)
+        self.assertGreater(same_floor, upper_floor)
 
 
 if __name__ == "__main__":
