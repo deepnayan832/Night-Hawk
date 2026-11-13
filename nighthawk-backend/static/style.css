@@ -3,3 +3,13 @@
 @media(max-width:760px){.sidebar{position:static;width:auto;height:auto;padding:12px 15px;border-right:0;border-bottom:1px solid var(--line)}.brand small,.side-label,.side-bottom{display:none}.nav{display:flex;overflow-x:auto;margin-top:13px}.nav-item{white-space:nowrap;padding:9px 11px;font-size:11px}.main{margin:0;padding:0 14px}.topbar{height:78px;margin-bottom:18px}.topbar h1{font-size:20px}.hero-panel{padding:26px 22px}.radar{display:none}.hero-panel h2{font-size:34px}.stats-grid{gap:8px}.stat-card{padding:13px;min-height:112px}.stat-card strong{font-size:22px}.view-intro{align-items:flex-start;flex-direction:column}.work-grid,.editor-layout{grid-template-columns:1fr}.scanner-summary{gap:8px}.toolbar{align-items:stretch}.toolbar label{min-width:42%}.toolbar .btn{flex:1}.coverage-actions{width:100%}.coverage-actions select{flex:1}.canvas-wrap{min-height:240px}.heat-wrap{min-height:300px}.heat-wrap canvas{min-height:280px}footer{flex-direction:column;gap:8px}}
 
 .plan-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* Three.js, CSI and multi-floor controls */
+.three-host{width:100%;height:100%;min-height:280px;position:relative;background:#0a1321}
+.three-host canvas{display:block;width:100%;height:100%;min-height:280px}
+.webgl-fallback{padding:26px;color:#f0c879;font:12px Consolas,monospace}
+.floor-toolbar{display:flex;gap:10px;align-items:flex-end;padding:14px 17px;border-bottom:1px solid #ffffff10}
+.floor-toolbar label{display:grid;gap:6px;flex:1;color:#8298b0;font:9px Consolas,monospace;letter-spacing:.08em}
+.floor-toolbar select{height:36px;background:#0b1523;border:1px solid #2b3e55;border-radius:7px;color:#e1eaf5;padding:0 9px;font:11px Manrope}
+#csiCanvas{width:100%;height:280px;min-height:280px}
+@media(max-width:760px){.floor-toolbar{align-items:stretch;flex-direction:column}.three-host,.three-host canvas{min-height:240px}}
