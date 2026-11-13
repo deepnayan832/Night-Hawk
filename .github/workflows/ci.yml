@@ -77,8 +77,8 @@ jobs:
               } catch {}
             }
             if (-not $ready) { throw "Local FastAPI app did not start on Windows." }
-            $home = Invoke-WebRequest -Uri "http://127.0.0.1:8765/" -TimeoutSec 5
-            if ($home.StatusCode -ne 200) { throw "Local app home page did not return HTTP 200." }
+            $homeResponse = Invoke-WebRequest -Uri "http://127.0.0.1:8765/" -TimeoutSec 5
+            if ($homeResponse.StatusCode -ne 200) { throw "Local app home page did not return HTTP 200." }
             $scene = Invoke-WebRequest -Uri "http://127.0.0.1:8765/static/three-scene.js" -TimeoutSec 5
             if ($scene.StatusCode -ne 200) { throw "Three.js bundle is not served by the local app." }
             $project = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/project" -TimeoutSec 5
