@@ -260,3 +260,38 @@ export function disposeScene(elementId) {
   instance.dispose();
   instances.delete(elementId);
 }
+
+
+export function renderVolumetricCloud(elementId, points = []) {
+  const instance = getInstance(elementId);
+  if (!instance) return false;
+  const { root, controls, camera } = instance;
+  clearRoot(root);
+  if (!Array.isArray(points) || points.length === 0) return false;
+  const xs = points.map(p => Number(p.x)), ys = points.map(p => Number(p.y)), zs = points.map(p => Number(p.z));
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+  const positions = [], colors = [];
+  for (const point of points) {
+    const color = valueColor(Number(point.rssi_dbm));
+    positions.push(Number(point.x) - cx, Number(point.z) - cz, Number(point.y) - cy);
+    colors.push(...color);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  const cloud = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.12, vertexColors: true, sizeAttenuation: true }));
+  root.add(cloud);
+  const span = Math.max(
+    Math.max(...xs) - Math.min(...xs),
+    Math.max(...ys) - Math.min(...ys),
+    Math.max(...zs) - Math.min(...zs),
+    2
+  );
+  controls.target.set(0, 0, 0);
+  camera.position.set(span * 1.2, span * 0.9, span * 1.4);
+  controls.update();
+  instance.resize();
+  return true;
+}
