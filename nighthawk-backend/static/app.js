@@ -144,7 +144,6 @@ function projectFromForm(){
   p.name=$("projectName").value||"My Home";p.width_m=Number($("planWidth").value);p.height_m=Number($("planHeight").value);p.wall_height_m=Number($("wallHeight").value);
   p.frequency_mhz=Number($("frequency").value);p.tx_power_dbm=Number($("txPower").value);
   p.router={...p.router,x:Number($("routerX").value),y:Number($("routerY").value)};
-  p.router_floor_id=state.activeFloorId;
   return {...p,floors:p.floors.map(f=>({...f,walls:f.walls||[]}))};
 }
 $("activeFloor").addEventListener("change",e=>activateFloor(e.target.value,true));
@@ -181,7 +180,7 @@ $("optimizeRouter").addEventListener("click",async()=>{
     const best=result.best;
     if(!best)throw new Error("No candidate router position found");
     $("routerX").value=best.x;$("routerY").value=best.y;
-    state.project.router.x=best.x;state.project.router.y=best.y;
+    state.project.router.x=best.x;state.project.router.y=best.y;state.project.router_floor_id=state.activeFloorId;
     $("optimizerResult").textContent="Suggested: "+best.x+" m, "+best.y+" m · model mean "+best.mean_rssi_dbm+" dBm · Save to apply.";
     $("savedLabel").textContent="UNSAVED CHANGES";drawAllPlans();
     toast("Best modelled position found. Review and save it.");
