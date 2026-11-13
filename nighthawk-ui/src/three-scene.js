@@ -172,9 +172,11 @@ export function renderHomeScene(elementId, project, surveyPoints = [], angleDegr
     root.add(mesh);
   }
 
-  const routerX = Number(project.router?.x ?? width / 2);
-  const routerZ = Number(project.router?.y ?? depth / 2);
-  addRouter(root, routerX + ox, routerZ + oz, 0.16);
+  if (project.router) {
+    const routerX = Number(project.router.x ?? width / 2);
+    const routerZ = Number(project.router.y ?? depth / 2);
+    addRouter(root, routerX + ox, routerZ + oz, 0.16);
+  }
   for (const point of surveyPoints || []) {
     const value = Number(point.rssi_dbm);
     const dot = new THREE.Mesh(
