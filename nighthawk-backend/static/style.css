@@ -48,6 +48,25 @@
 
 .diff-badge{display:inline-block;padding:2px 6px;border-radius:4px;font:9px Consolas,monospace;font-weight:700}
 .diff-badge.plus{background:#1b4433;color:var(--green);border:1px solid #2e7a5b}
+.diff-badge.minus{background:#441b25;color:var(--red);border:1px solid #7a2e3d}
+
+/* Glassmorphism 2.0 & Tactile Physics */
+.stat-card, .status-card, .panel, .diff-drawer, .sidebar {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 15px 35px -10px rgba(0,0,0,0.5), inset 0 1px 1px 0 rgba(255,255,255,0.08);
+}
+.stat-card:hover, .panel:hover {
+  border-color: rgba(102, 226, 223, 0.35);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+button {
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), filter 0.16s ease !important;
+}
+button:active {
+  transform: scale(0.97) !important;
+}
+
 .diff-badge.minus{background:#441b22;color:var(--red);border:1px solid #7a2e3c}
 .diff-badge.neutral{background:#1f334a;color:#a8c2de;border:1px solid #324e6e}
 
