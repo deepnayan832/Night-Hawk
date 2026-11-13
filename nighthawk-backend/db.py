@@ -121,6 +121,16 @@ def get_project() -> dict[str, Any]:
     with db_session() as conn:
         row = conn.execute("SELECT payload, updated_at FROM projects WHERE id = 1").fetchone()
     result = json.loads(row["payload"])
+    result.setdefault("router_floor_id", "floor_1")
+    if not result.get("floors"):
+        result["floors"] = [{
+            "id": "floor_1", "name": "Ground floor", "elevation_m": 0.0,
+            "width_m": float(result.get("width_m", 10.0)),
+            "height_m": float(result.get("height_m", 8.0)),
+            "wall_height_m": float(result.get("wall_height_m", 2.7)),
+            "floor_loss_db": 18.0,
+            "walls": result.get("walls", []),
+        }]
     result["updated_at"] = row["updated_at"]
     return result
 
