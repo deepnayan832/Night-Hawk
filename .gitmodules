@@ -1,0 +1,36 @@
+[submodule "upstream/wifi-heatmapper"]
+	path = upstream/wifi-heatmapper
+	url = https://github.com/hnykda/wifi-heatmapper.git
+[submodule "upstream/open-heat"]
+	path = upstream/open-heat
+	url = https://github.com/dcchill/open-heat.git
+[submodule "upstream/Wi-Fi_HeatMap"]
+	path = upstream/Wi-Fi_HeatMap
+	url = https://github.com/J0nan/Wi-Fi_HeatMap.git
+[submodule "upstream/wifi-heatmap"]
+	path = upstream/wifi-heatmap
+	url = https://github.com/ribaldorafael/wifi-heatmap.git
+[submodule "upstream/SignalPlan"]
+	path = upstream/SignalPlan
+	url = https://github.com/NC4321/SignalPlan.git
+[submodule "upstream/3D_wifi_scanner"]
+	path = upstream/3D_wifi_scanner
+	url = https://github.com/Neumi/3D_wifi_scanner.git
+[submodule "upstream/ethersweep"]
+	path = upstream/ethersweep
+	url = https://github.com/Neumi/ethersweep.git
+[submodule "upstream/wifi-3d-fusion"]
+	path = upstream/wifi-3d-fusion
+	url = https://github.com/DwayneCon/wifi-3d-fusion.git
+[submodule "upstream/WiFi-CSI-Human-Detection"]
+	path = upstream/WiFi-CSI-Human-Detection
+	url = https://github.com/s-shrikanth/WiFi-CSI-Human-Detection.git
+[submodule "upstream/csi-gui-rs"]
+	path = upstream/csi-gui-rs
+	url = https://github.com/csi-rs/csi-gui-rs.git
+[submodule "upstream/esp-csi-cli-rs"]
+	path = upstream/esp-csi-cli-rs
+	url = https://github.com/csi-rs/esp-csi-cli-rs.git
+[submodule "upstream/ESP32-CSI-Tool"]
+	path = upstream/ESP32-CSI-Tool
+	url = https://github.com/StevenMHernandez/ESP32-CSI-Tool.git
