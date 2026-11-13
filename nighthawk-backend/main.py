@@ -291,10 +291,25 @@ def survey_export_csv(session_id: int) -> Response:
 def router_optimize(
     step_m: float = Query(default=1.0, ge=0.5, le=5.0),
     resolution: int = Query(default=10, ge=5, le=20),
+    floor_id: str = Query(default="floor_1", max_length=40),
 ) -> dict[str, Any]:
-    """Rank candidate router locations by mean modelled RSSI across a coarse grid."""
+    """Rank router positions on one floor; vertical slab losses are modelled."""
     project = db.get_project()
-    width, height = float(project["width_m"]), float(project["height_m"])
+    floors = project.get("floors") or [{
+        "id": "floor_1", "name": "Ground floor", "elevation_m": 0.0,
+        "width_m": project["width_m"], "height_m": project["height_m"],
+        "walls": project["walls"], "floor_loss_db": 18.0,
+    }]
+    target_floor = next((floor for floor in floors if floor["id"] == floor_id), None)
+    if target_floor is None:
+        raise HTTPException(status_code=404, detail="Floor not found.")
+    source_id = project.get("router_floor_id", floors[0]["id"])
+    source_floor = next((floor for floor in floors if floor["id"] == source_id), floors[0])
+    ordered = sorted(floors, key=lambda item: item["elevation_m"])
+    floor_count = abs(ordered.index(target_floor) - ordered.index(source_floor))
+    source_z = float(source_floor["elevation_m"]) + float(project["router"].get("z", 2.4))
+    target_z = float(target_floor["elevation_m"]) + 1.0
+    width, height = float(target_floor["width_m"]), float(target_floor["height_m"])
     xs = [width * i / (resolution - 1) for i in range(resolution)]
     ys = [height * i / (resolution - 1) for i in range(resolution)]
     candidates: list[dict[str, Any]] = []
@@ -304,29 +319,31 @@ def router_optimize(
         while y <= height - min(step_m / 2.0, height / 2.0) + 1e-9:
             router = {"x": x, "y": y}
             samples = [
-                predict_rssi_dbm(
-                    sx, sy, router, project["walls"],
+                predict_rssi_3d_dbm(
+                    sx, sy, target_z, router, source_z, target_floor["walls"],
                     int(project["frequency_mhz"]), float(project["tx_power_dbm"]),
+                    float(target_floor.get("floor_loss_db", 18.0)), floor_count,
                 )
                 for sx in xs for sy in ys
             ]
-            ordered = sorted(samples)
+            ordered_values = sorted(samples)
             candidates.append({
                 "x": round(x, 2), "y": round(y, 2),
                 "mean_rssi_dbm": round(sum(samples) / len(samples), 1),
-                "worst_decile_dbm": round(ordered[max(0, int(len(ordered) * 0.1) - 1)], 1),
+                "worst_decile_dbm": round(ordered_values[max(0, int(len(ordered_values) * 0.1) - 1)], 1),
             })
             y += step_m
         x += step_m
     candidates.sort(
-        key=lambda item: (item["mean_rssi_dbm"] + 0.35 * item["worst_decile_dbm"]),
+        key=lambda item: item["mean_rssi_dbm"] + 0.35 * item["worst_decile_dbm"],
         reverse=True,
     )
     return {
+        "floor_id": floor_id, "floor_name": target_floor["name"],
         "recommendations": candidates[:5],
         "best": candidates[0] if candidates else None,
-        "method": "Coarse grid search maximizing mean predicted RSSI with a weak-area penalty",
-        "notice": "The optimizer uses the same simplified RF model as the predicted map. Validate placement with a real walk survey.",
+        "method": "Coarse grid search using 3D FSPL, target-floor wall crossings and simplified slab loss",
+        "notice": "Estimate only. The router placement score must be validated with actual survey readings.",
     }
 
 
