@@ -1,79 +1,76 @@
 # NightHawk — Implementation Status
 
-**Current release:** 1.0.0 Tier 1 application baseline  
-**Last updated:** November 12, 2026  
-**Verification state:** Source committed; automated CI run pending/required; Windows hardware validation has not been performed in this session.
+**Release target:** 1.1.0  
+**Last updated:** November 13, 2026  
+**Code state:** Tier 1 Windows application plus optional Tier 2 CSI serial and volumetric dataset workflows are present in `main`.  
+**Hardware verification:** A real Windows Wi-Fi adapter and physical ESP32/controller have not been tested from this repository session.
 
-This file reports what is actually present in the repository. A source-code implementation is not treated as verified on a physical Windows adapter until it has been run on that platform.
+This document separates code that exists, code covered by automated tests, and hardware validation that still requires physical devices.
 
-## Release 1.0.0 scope
+## Implemented in the repository
 
-| Component | Repository implementation | Verification status |
+| Component | Implementation | Verification boundary |
 |---|---|---|
-| FastAPI local server | `nighthawk-backend/main.py` | Added; CI/import validation pending |
-| SQLite project and survey storage | `nighthawk-backend/db.py` | Unit tests added |
-| Windows WLAN scan | `nighthawk-backend/wifi.py` using `netsh` | Implemented; requires Windows adapter validation |
-| Signal display | Signal percentage + clearly labelled estimated dBm conversion | Implemented; not calibrated RSSI |
-| Survey sessions and points | Create, save, list and export CSV | Implemented; database tests added |
-| Floor-plan editing | Dimensions, router placement, material-labelled wall drawing/removal | Implemented in browser UI |
-| 2D plan view | Canvas floor-plan editor | Implemented |
-| 3D preview | Isometric canvas projection with wall height and rotation control | Implemented as a preview; not Three.js/WebGL |
-| Measured heatmap | IDW interpolation of saved measurements | Implemented; RF unit tests added |
-| Predicted coverage | FSPL plus simplified wall-material attenuation | Implemented; estimates only |
-| Router placement ranking | Grid-search against simplified predicted RF score | Implemented; requires real-world validation |
-| API documentation | FastAPI Swagger UI at `/docs` | Available when server is running |
-| Optional CSI sensing | No serial/ESP32 capture implementation in this release | Not implemented |
-| Motorized volumetric scanning | No gantry/controller driver in this release | Not implemented |
-| Multi-floor plans / CAD image import | Not included in this release | Not implemented |
+| Local FastAPI service | `nighthawk-backend/main.py`, localhost-only on port 8765 | FastAPI integration tests |
+| SQLite persistence | Project, surveys, points and volumetric point cloud | Database unit tests |
+| Windows WLAN scanner | `netsh wlan` interface and BSSID scan parser | Fixture-based parser tests; real adapter test still required |
+| Signal display | Windows signal percentage with explicitly estimated dBm conversion | Conversion is not calibrated RSSI |
+| Survey sessions | Create sessions, save points, list and CSV export | API integration and DB tests |
+| Multi-floor project model | Per-floor ID, name, elevation, dimensions, walls and slab-loss assumptions | API tests cover 2-floor estimates |
+| Floor-plan editor | Per-floor dimensions, material-labelled walls, router floor placement | Browser workflow implemented; Windows browser testing pending |
+| 3D room view | Bundled Three.js/WebGL geometry with OrbitControls | Bundle build covered by CI; GPU/browser visual check still required |
+| Measured coverage | Per-floor IDW from saved physical survey points | RF and API tests |
+| Predicted coverage | 3D-distance FSPL, target-floor wall crossings and simplified floor-slab loss | Formula/API tests; building calibration not performed |
+| 3D RF surface | Three.js mesh with colour and elevation derived from RF grid | Bundle build covered by CI; visual/GPU check pending |
+| Router placement ranking | Per-floor candidate grid search using the same model | API code present; real placement validation pending |
+| ESP32 CSI serial reader | COM-port discovery, configurable baud and CSI field column, I/Q amplitude/phase parsing | Parser tests; physical ESP32 streaming test pending |
+| CSI signal view | Live subcarrier amplitude plot and rolling variance | Browser/hardware validation pending; no people classification |
+| Volumetric dataset import | CSV validation, SQLite persistence and Three.js point cloud | Parser tests; browser/GPU validation pending |
+| Scan waypoint planner | Bounded serpentine x/y/z waypoint CSV for an external/manual scanner | Scan-plan unit tests |
+| Project backup | JSON export/import | API endpoint present |
+| Local privacy boundary | FastAPI bound to loopback; no packet injection/deauthentication/password cracking | Code/config review |
+
+## Not implemented or not hardware-verified
+
+1. **Physical motorized rig control:** The release exports waypoint plans but does not send commands to stepper motors. Controller protocol, homing, travel limits, end-stops and emergency-stop integration are rig-specific and are not guessed.
+2. **Physical Windows adapter validation:** No access to the user's actual Windows machine or WLAN adapter was available. The scanner parser has fixture tests, but it still needs live testing on the target PC/driver.
+3. **Physical ESP32 validation:** The serial reader and documented ESP32-CSI-Tool CSV parser exist. A compatible board and firmware are required to verify real stream timing and firmware-specific CSV layout.
+4. **High-resolution through-wall imaging:** Not provided. Ordinary Wi-Fi/CSI data cannot be represented as architectural X-ray imaging.
+5. **Full RF ray tracing:** The current propagation model is a simplified estimate, not a full 3D ray tracer. It omits detailed antenna patterns, multipath, furniture, doors/windows as openings, dynamic interference and calibrated material data.
+6. **CAD/image floor-plan import:** Not implemented; floors are drawn in the editor.
 
 ## Automated verification
 
 GitHub Actions workflow: `.github/workflows/ci.yml`
 
 The workflow is configured to:
-- Install the Python runtime dependencies.
-- Compile the Python source files.
-- Run RF and SQLite unit tests.
-- Validate frontend JavaScript syntax with Node.js.
+- Install Python dependencies and compile the backend.
+- Run RF, SQLite, WLAN parser, CSI parser and volumetric/scan-plan unit tests.
+- Run FastAPI integration tests for multi-floor coverage, survey persistence and volumetric import.
+- Install Node.js, build the locally bundled Three.js renderer, and syntax-check JavaScript.
 
-A green CI run proves the listed automated checks passed in the runner environment. It does not prove that a particular Windows Wi-Fi adapter exposes every netsh field, nor that the RF model matches a particular building.
+A successful CI run verifies the tested code paths in the runner environment. It does not prove compatibility with every Windows WLAN driver or physical hardware.
 
 ## Windows validation checklist
 
-These steps still need to be run on a real Windows 10/11 machine:
+These items must be checked on the actual target PC:
 
-- [ ] Run `.`\setup.ps1 from a fresh clone.
-- [ ] Confirm the local API opens at `http://127.0.0.1:8765`.
-- [ ] Confirm the Wi-Fi scanner returns actual nearby BSSIDs for the adapter.
-- [ ] Check behavior when Windows Location privacy access is disabled.
-- [ ] Create a survey and save several measured points.
-- [ ] Restart the service and confirm the project and survey points persist.
-- [ ] Compare a measured heatmap with a second physical walk survey.
-- [ ] Validate router-placement recommendations in the actual room.
-- [ ] Test the stop script without affecting unrelated processes.
+- [ ] Run `.`\setup.ps1 from a fresh clone with Python 3.10+, Node.js 20+ and npm.
+- [ ] Confirm `.`\start.ps1 opens `http://127.0.0.1:8765`.
+- [ ] Scan nearby networks on the actual Windows Wi-Fi adapter.
+- [ ] Check behavior with Windows Location privacy disabled/enabled.
+- [ ] Create a two-floor project and save/reload it.
+- [ ] Record multiple points on each floor and compare measured coverage by floor.
+- [ ] Check Three.js room and RF surfaces on the actual GPU/browser.
+- [ ] Connect a compatible ESP32, confirm serial parsing, and compare CSI columns with firmware output.
+- [ ] Import a volumetric CSV, restart the app, and confirm point-cloud persistence.
+- [ ] Validate router placement suggestions with a physical survey.
+- [ ] Confirm `.`\stop.ps1 stops only the NightHawk server process.
 
-## Known limitations
+## Next work
 
-1. The Windows scanner relies on `netsh wlan`. Field labels and nearby-network visibility can vary with Windows language, permissions and adapter drivers.
-2. Windows signal quality percentage is not calibrated dBm. NightHawk converts it to an approximate dBm display value and records the source.
-3. The RF model uses indicative wall attenuation constants and 2D wall crossings. It does not yet model detailed antenna patterns, multipath, furniture, floor-to-floor propagation, or measured material properties.
-4. The 3D panel is an isometric canvas preview, not a full Three.js engine.
-5. CSI sensing, people detection, volumetric live capture, motorized gantry control, and multi-floor modelling remain future work.
-6. A live survey is only as accurate as the user's position calibration, adapter/driver readings and measurement procedure.
-
-## Roadmap
-
-### Next: stabilize Tier 1
-- Validate against multiple Windows Wi-Fi adapters and locales.
-- Improve Wi-Fi parsing for localized Windows command output.
-- Add floor-plan image import and calibration.
-- Add survey session management controls and floor-plan image import.
-- Add model calibration from survey measurements and error metrics.
-- Improve 3D rendering and multi-floor geometry.
-
-### Later: optional hardware
-- ESP32 CSI serial protocol adapter with hardware capability detection.
-- CSI time-series visualizer and carefully validated motion experiments.
-- Separate, opt-in motorized scanner adapter with a documented safe command contract.
-
-No optional hardware feature is considered complete until it has been tested with the corresponding physical hardware.
+- Live Windows adapter validation and localized netsh field handling.
+- CSI stream validation on selected ESP32 board/firmware combinations.
+- Add measured-model calibration and residual/RMSE reporting.
+- Add CAD/image plan import and opening-aware wall geometry.
+- Implement a physical scanner adapter only after the exact controller protocol and safety interlocks are supplied.
