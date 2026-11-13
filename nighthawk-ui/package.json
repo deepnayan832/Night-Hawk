@@ -1,0 +1,15 @@
+{
+  "name": "nighthawk-ui",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Offline-bundled Three.js scenes for NightHawk",
+  "scripts": {
+    "build": "esbuild src/three-scene.js --bundle --minify --format=iife --global-name=NightHawk3D --outfile=../nighthawk-backend/static/three-scene.js"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
