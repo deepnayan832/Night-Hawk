@@ -26,6 +26,18 @@ DEFAULT_PROJECT: dict[str, Any] = {
         {"x1": 10.0, "y1": 8.0, "x2": 0.0, "y2": 8.0, "material": "concrete"},
         {"x1": 0.0, "y1": 8.0, "x2": 0.0, "y2": 0.0, "material": "concrete"},
     ],
+    "router_floor_id": "floor_1",
+    "floors": [{
+        "id": "floor_1", "name": "Ground floor", "elevation_m": 0.0,
+        "width_m": 10.0, "height_m": 8.0, "wall_height_m": 2.7,
+        "floor_loss_db": 18.0,
+        "walls": [
+            {"x1": 0.0, "y1": 0.0, "x2": 10.0, "y2": 0.0, "material": "concrete"},
+            {"x1": 10.0, "y1": 0.0, "x2": 10.0, "y2": 8.0, "material": "concrete"},
+            {"x1": 10.0, "y1": 8.0, "x2": 0.0, "y2": 8.0, "material": "concrete"},
+            {"x1": 0.0, "y1": 8.0, "x2": 0.0, "y2": 0.0, "material": "concrete"},
+        ],
+    }],
 }
 
 
@@ -85,6 +97,16 @@ def init_db() -> None:
             created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_points_session ON survey_points(session_id);
+        CREATE TABLE IF NOT EXISTS volumetric_points (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_name TEXT NOT NULL,
+            x REAL NOT NULL,
+            y REAL NOT NULL,
+            z REAL NOT NULL,
+            rssi_dbm REAL NOT NULL,
+            imported_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_volumetric_source ON volumetric_points(source_name);
         """)
         row = conn.execute("SELECT id FROM projects WHERE id = 1").fetchone()
         if row is None:
@@ -163,5 +185,25 @@ def get_points(session_id: int) -> list[dict[str, Any]]:
         rows = conn.execute(
             "SELECT * FROM survey_points WHERE session_id = ? ORDER BY id",
             (session_id,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def replace_volumetric_points(source_name: str, points: list[dict[str, Any]]) -> dict[str, Any]:
+    stamp = utc_now()
+    with db_session() as conn:
+        conn.execute("DELETE FROM volumetric_points")
+        conn.executemany(
+            """INSERT INTO volumetric_points (source_name, x, y, z, rssi_dbm, imported_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            [(source_name, p["x"], p["y"], p["z"], p["rssi_dbm"], stamp) for p in points],
+        )
+    return {"source_name": source_name, "point_count": len(points), "imported_at": stamp}
+
+
+def get_volumetric_points() -> list[dict[str, Any]]:
+    with db_session() as conn:
+        rows = conn.execute(
+            "SELECT id, source_name, x, y, z, rssi_dbm, imported_at FROM volumetric_points ORDER BY id"
         ).fetchall()
     return [dict(row) for row in rows]
