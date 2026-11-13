@@ -99,3 +99,32 @@ def make_grid(
         "min_dbm": min(values) if values else None,
         "max_dbm": max(values) if values else None,
     }
+
+
+def predict_rssi_3d_dbm(
+    x: float,
+    y: float,
+    target_elevation_m: float,
+    router: dict[str, float],
+    router_elevation_m: float,
+    walls: list[dict[str, Any]],
+    frequency_mhz: int = 5000,
+    tx_power_dbm: float = 18.0,
+    floor_loss_db: float = 18.0,
+    floor_count: int = 0,
+) -> float:
+    """Estimate RSSI at a 3D point with simplified vertical floor attenuation.
+
+    This is a planning model, not a full ray tracer. Floor crossings are
+    supplied by the caller from the selected floor elevations.
+    """
+    dx = float(x) - float(router["x"])
+    dy = float(y) - float(router["y"])
+    dz = float(target_elevation_m) - float(router_elevation_m)
+    distance = math.sqrt(dx * dx + dy * dy + dz * dz)
+    source = (float(router["x"]), float(router["y"]))
+    target = (float(x), float(y))
+    path_loss = fspl_db(distance, frequency_mhz)
+    wall_loss = wall_loss_db(source, target, walls, frequency_mhz)
+    slab_loss = abs(int(floor_count)) * max(0.0, float(floor_loss_db))
+    return round(max(-110.0, min(-15.0, tx_power_dbm - path_loss - wall_loss - slab_loss)), 1)
